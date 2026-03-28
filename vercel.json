@@ -1,0 +1,5 @@
+{
+  "name": "Cuibo WMS",
+  "description": "Warehouse Management System with Google Sheets Sync",
+  "requestFramePermissions": []
+}

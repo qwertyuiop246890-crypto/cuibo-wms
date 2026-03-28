@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product in the inventory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "variant": { "type": "string" },
+        "purchaseQuantity": { "type": "number" },
+        "stock": { "type": "number" },
+        "price": { "type": "number" },
+        "discountSettings": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "A customer profile.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "totalSpent": { "type": "number" },
+        "status": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "An order placed by a customer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "requestedQuantity": { "type": "number" },
+        "allocatedQuantity": { "type": "number" },
+        "isUrgent": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "note": { "type": "string" },
+        "subtotal": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "productId", "customerId", "createdAt", "updatedAt"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "User-specific application settings.",
+      "type": "object",
+      "properties": {
+        "notificationTemplate": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/products/{productId}": {
+      "schema": "Product",
+      "description": "User's product inventory."
+    },
+    "/users/{userId}/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "User's customer list."
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "User's order records."
+    },
+    "/users/{userId}/settings/general": {
+      "schema": "Settings",
+      "description": "User's general settings."
+    }
+  }
+}

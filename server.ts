@@ -1,0 +1,183 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: /users/{userId}/products/{productId}
+// Document ID: productId
+// Fields:
+//   - id: string (required)
+//   - name: string (required, size < 100)
+//   - variant: string (optional, size < 100)
+//   - purchaseQuantity: number (optional, >= 0)
+//   - stock: number (optional, >= 0)
+//   - price: number (optional, >= 0)
+//   - discountSettings: string (optional, size < 500)
+//   - updatedAt: number (required, timestamp)
+//
+// Collection: /users/{userId}/customers/{customerId}
+// Document ID: customerId
+// Fields:
+//   - id: string (required)
+//   - name: string (required, size < 100)
+//   - totalSpent: number (optional, >= 0)
+//   - status: string (optional, enum: ['active', 'inactive', 'blocked'])
+//   - updatedAt: number (required, timestamp)
+//
+// Collection: /users/{userId}/orders/{orderId}
+// Document ID: orderId
+// Fields:
+//   - id: string (required)
+//   - productId: string (required)
+//   - customerId: string (required)
+//   - requestedQuantity: number (optional, >= 0)
+//   - allocatedQuantity: number (optional, >= 0)
+//   - isUrgent: boolean (optional)
+//   - createdAt: number (required, timestamp)
+//   - note: string (optional, size < 1000)
+//   - subtotal: number (optional, >= 0)
+//   - updatedAt: number (required, timestamp)
+//
+// Collection: /users/{userId}/settings/general
+// Document ID: general
+// Fields:
+//   - notificationTemplate: string (optional, size < 2000)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "cuibo.buy@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is string &&
+         request.resource.data[field].size() >= minLen &&
+         request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidNumber(field, minVal) {
+      return request.resource.data[field] is number && request.resource.data[field] >= minVal;
+    }
+
+    function isValidOptionalNumber(field, minVal) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is number && request.resource.data[field] >= minVal);
+    }
+
+    function isValidOptionalBoolean(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is bool;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidProduct(data) {
+      return hasRequiredFields(['id', 'name', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'name', 'variant', 'purchaseQuantity', 'stock', 'price', 'discountSettings', 'updatedAt']) &&
+             isValidString('id', 1, 100) &&
+             isValidString('name', 1, 100) &&
+             isValidOptionalString('variant', 0, 100) &&
+             isValidOptionalNumber('purchaseQuantity', 0) &&
+             isValidOptionalNumber('stock', 0) &&
+             isValidOptionalNumber('price', 0) &&
+             isValidOptionalString('discountSettings', 0, 500) &&
+             isValidNumber('updatedAt', 0);
+    }
+
+    function isValidCustomer(data) {
+      return hasRequiredFields(['id', 'name', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'name', 'totalSpent', 'status', 'updatedAt']) &&
+             isValidString('id', 1, 100) &&
+             isValidString('name', 1, 100) &&
+             isValidOptionalNumber('totalSpent', 0) &&
+             isValidOptionalString('status', 0, 50) &&
+             isValidNumber('updatedAt', 0);
+    }
+
+    function isValidOrder(data) {
+      return hasRequiredFields(['id', 'productId', 'customerId', 'createdAt', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'isUrgent', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
+             isValidString('id', 1, 100) &&
+             isValidString('productId', 1, 100) &&
+             isValidString('customerId', 1, 100) &&
+             isValidOptionalNumber('requestedQuantity', 0) &&
+             isValidOptionalNumber('allocatedQuantity', 0) &&
+             isValidOptionalBoolean('isUrgent') &&
+             isValidNumber('createdAt', 0) &&
+             isValidOptionalString('note', 0, 1000) &&
+             isValidOptionalNumber('subtotal', 0) &&
+             isValidNumber('updatedAt', 0);
+    }
+
+    function isValidSettings(data) {
+      return hasOnlyAllowedFields(['notificationTemplate']) &&
+             isValidOptionalString('notificationTemplate', 0, 2000);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+
+      match /products/{productId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidProduct(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /customers/{customerId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidCustomer(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /orders/{orderId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidOrder(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /settings/general {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if (isOwner(userId) || isAdmin()) && isValidSettings(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
