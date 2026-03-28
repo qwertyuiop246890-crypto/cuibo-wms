@@ -1,5 +1,13 @@
 {
-  "name": "Cuibo WMS",
-  "description": "Warehouse Management System with Google Sheets Sync",
-  "requestFramePermissions": []
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

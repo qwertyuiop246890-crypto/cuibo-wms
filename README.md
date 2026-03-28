@@ -1,77 +1,20 @@
-{
-  "entities": {
-    "Product": {
-      "title": "Product",
-      "description": "A product in the inventory.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "variant": { "type": "string" },
-        "purchaseQuantity": { "type": "number" },
-        "stock": { "type": "number" },
-        "price": { "type": "number" },
-        "discountSettings": { "type": "string" },
-        "updatedAt": { "type": "number" }
-      },
-      "required": ["id", "name", "updatedAt"]
-    },
-    "Customer": {
-      "title": "Customer",
-      "description": "A customer profile.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "totalSpent": { "type": "number" },
-        "status": { "type": "string" },
-        "updatedAt": { "type": "number" }
-      },
-      "required": ["id", "name", "updatedAt"]
-    },
-    "Order": {
-      "title": "Order",
-      "description": "An order placed by a customer.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "productId": { "type": "string" },
-        "customerId": { "type": "string" },
-        "requestedQuantity": { "type": "number" },
-        "allocatedQuantity": { "type": "number" },
-        "isUrgent": { "type": "boolean" },
-        "createdAt": { "type": "number" },
-        "note": { "type": "string" },
-        "subtotal": { "type": "number" },
-        "updatedAt": { "type": "number" }
-      },
-      "required": ["id", "productId", "customerId", "createdAt", "updatedAt"]
-    },
-    "Settings": {
-      "title": "Settings",
-      "description": "User-specific application settings.",
-      "type": "object",
-      "properties": {
-        "notificationTemplate": { "type": "string" }
-      }
-    }
-  },
-  "firestore": {
-    "/users/{userId}/products/{productId}": {
-      "schema": "Product",
-      "description": "User's product inventory."
-    },
-    "/users/{userId}/customers/{customerId}": {
-      "schema": "Customer",
-      "description": "User's customer list."
-    },
-    "/users/{userId}/orders/{orderId}": {
-      "schema": "Order",
-      "description": "User's order records."
-    },
-    "/users/{userId}/settings/general": {
-      "schema": "Settings",
-      "description": "User's general settings."
-    }
-  }
-}
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/92144d8e-18c8-46b9-9e85-044a5a801e34
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
