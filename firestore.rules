@@ -9,6 +9,7 @@
 //   - name: string (required, size < 100)
 //   - variant: string (optional, size < 100)
 //   - purchaseQuantity: number (optional, >= 0)
+//   - lossQuantity: number (optional, >= 0)
 //   - stock: number (optional, >= 0)
 //   - price: number (optional, >= 0)
 //   - discountSettings: string (optional, size < 500)
@@ -103,11 +104,12 @@ service cloud.firestore {
     // ===============================================================
     function isValidProduct(data) {
       return hasRequiredFields(['id', 'name', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'name', 'variant', 'purchaseQuantity', 'stock', 'price', 'discountSettings', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'name', 'variant', 'purchaseQuantity', 'lossQuantity', 'stock', 'price', 'discountSettings', 'updatedAt']) &&
              isValidString('id', 1, 100) &&
              isValidString('name', 1, 100) &&
              isValidOptionalString('variant', 0, 100) &&
              isValidOptionalNumber('purchaseQuantity', 0) &&
+             isValidOptionalNumber('lossQuantity', 0) &&
              isValidOptionalNumber('stock', 0) &&
              isValidOptionalNumber('price', 0) &&
              isValidOptionalString('discountSettings', 0, 500) &&

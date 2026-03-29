@@ -9,6 +9,7 @@
         "name": { "type": "string" },
         "variant": { "type": "string" },
         "purchaseQuantity": { "type": "number" },
+        "lossQuantity": { "type": "number" },
         "stock": { "type": "number" },
         "price": { "type": "number" },
         "discountSettings": { "type": "string" },

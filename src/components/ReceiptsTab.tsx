@@ -27,7 +27,7 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
   }, {} as Record<string, Order[]>);
 
   const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
+    c.name.replace(/\s+/g, '').toLowerCase().includes(searchTerm.replace(/\s+/g, '').toLowerCase()) && 
     ordersByCustomer[c.id] && 
     ordersByCustomer[c.id].length > 0
   );
@@ -68,11 +68,10 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
       </div>
 
       <div className="relative no-print">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text)] opacity-50" size={20} />
         <input 
           type="text" 
           placeholder="搜尋顧客收據..." 
-          className="input-field pl-10"
+          className="input-field"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

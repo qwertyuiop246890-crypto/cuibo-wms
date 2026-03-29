@@ -36,9 +36,10 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
     const p = products.find(p => p.id === o.productId);
     const c = customers.find(c => c.id === o.customerId);
     const searchLower = searchTerm.toLowerCase();
+    const searchNoSpace = searchTerm.replace(/\s+/g, '').toLowerCase();
     return (
       (p && p.name.toLowerCase().includes(searchLower)) ||
-      (c && c.name.toLowerCase().includes(searchLower)) ||
+      (c && c.name.replace(/\s+/g, '').toLowerCase().includes(searchNoSpace)) ||
       o.note.toLowerCase().includes(searchLower)
     );
   });
@@ -81,17 +82,18 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   };
 
   const handleSave = () => {
-    if (!customerName.trim() || !productName.trim()) return showAlert("提示", "請輸入顧客與商品名稱");
+    const sanitizedCustomerName = customerName.replace(/\s+/g, '');
+    if (!sanitizedCustomerName || !productName.trim()) return showAlert("提示", "請輸入顧客與商品名稱");
 
     let cId = '';
-    const existingCustomer = customers.find(c => c.name === customerName.trim());
+    const existingCustomer = customers.find(c => c.name.replace(/\s+/g, '') === sanitizedCustomerName);
     if (existingCustomer) {
       cId = existingCustomer.id;
     } else {
       cId = uuidv4();
       const newCustomer: Customer = {
         id: cId,
-        name: customerName.trim(),
+        name: sanitizedCustomerName,
         totalSpent: 0,
         updatedAt: Date.now()
       };
@@ -165,11 +167,10 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text)] opacity-50" size={20} />
         <input 
           type="text" 
           placeholder="依商品或顧客搜尋訂單..." 
-          className="input-field pl-10"
+          className="input-field"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -188,6 +189,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                 <th className="p-4 font-medium text-center">配貨數量</th>
                 <th className="p-4 font-medium text-right">小計</th>
                 <th className="p-4 font-medium">備註</th>
+                <th className="p-4 font-medium">建立日期</th>
                 <th className="p-4 font-medium text-center">操作</th>
               </tr>
             </thead>
@@ -198,7 +200,11 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                 const isFullyAllocated = order.allocatedQuantity >= order.requestedQuantity;
                 
                 return (
-                  <tr key={order.id} className="hover:bg-[var(--color-bg)] transition-colors">
+                  <tr 
+                    key={order.id} 
+                    className="hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+                    onClick={() => handleOpenModal(order)}
+                  >
                     <td className="p-4 font-medium text-[var(--color-text)]">
                       {customer?.name || '未知'}
                     </td>
@@ -227,6 +233,9 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                     <td className="p-4 text-sm opacity-80 max-w-[200px] truncate" title={order.note}>
                       {order.note || '-'}
                     </td>
+                    <td className="p-4 text-sm opacity-70">
+                      {formatInTimeZone(new Date(order.createdAt), 'Asia/Taipei', 'yyyy/MM/dd')}
+                    </td>
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => handleOpenModal(order)} className="p-1.5 text-[var(--color-primary)] hover:bg-[var(--color-bg)] rounded transition-colors">
@@ -242,7 +251,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center opacity-60">
+                  <td colSpan={9} className="p-8 text-center opacity-60">
                     找不到訂單。
                   </td>
                 </tr>
@@ -259,7 +268,11 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
             const isFullyAllocated = order.allocatedQuantity >= order.requestedQuantity;
             
             return (
-              <div key={order.id} className="p-4 space-y-3">
+              <div 
+                key={order.id} 
+                className="p-4 space-y-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => handleOpenModal(order)}
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-2">
@@ -270,9 +283,9 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                     </div>
                     <p className="text-sm text-gray-700 font-medium">{product?.name}</p>
                     <p className="text-xs text-gray-500">規格: {product?.variant || '-'}</p>
-                    <p className="text-[10px] text-gray-400 mt-1">{formatInTimeZone(new Date(order.createdAt), 'Asia/Taipei', 'yyyyMMddHHmm')}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{formatInTimeZone(new Date(order.createdAt), 'Asia/Taipei', 'yyyy/MM/dd')}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                     <button onClick={() => handleOpenModal(order)} className="p-2 text-[var(--color-primary)] bg-blue-50 rounded-lg">
                       <Edit2 size={16} />
                     </button>

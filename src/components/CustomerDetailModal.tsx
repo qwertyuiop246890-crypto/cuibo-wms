@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { X, Copy, Check, Save, Trash2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { X, Copy, Check, Save, Trash2, Plus } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
+import { formatInTimeZone } from 'date-fns-tz';
 import { Customer, Order, Product } from '../types';
 import { useDialog } from '../hooks/useDialog';
 import { calculateSubtotal } from '../lib/priceUtils';
@@ -17,6 +19,75 @@ interface Props {
 export default function CustomerDetailModal({ customer, orders, setOrders, products, setProducts, notificationTemplate, onClose }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [copied, setCopied] = useState(false);
+  
+  // Add Order Modal State
+  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
+  const [productName, setProductName] = useState('');
+  const [productVariant, setProductVariant] = useState('');
+  const [productPrice, setProductPrice] = useState(0);
+  const [requestedQuantity, setRequestedQuantity] = useState(1);
+  const [allocatedQuantity, setAllocatedQuantity] = useState(0);
+  const [note, setNote] = useState('');
+  const [isUrgent, setIsUrgent] = useState(false);
+
+  // Auto-fill price when product name and variant match an existing product
+  useEffect(() => {
+    const existingProduct = products.find(p => p.name === productName.trim() && p.variant === productVariant.trim());
+    if (existingProduct) {
+      setProductPrice(existingProduct.price);
+    }
+  }, [productName, productVariant, products]);
+
+  const handleSaveOrder = () => {
+    if (!productName.trim()) return showAlert("提示", "請輸入商品名稱");
+
+    let pId = '';
+    let productToUse: Product;
+    const existingProduct = products.find(p => p.name === productName.trim() && p.variant === productVariant.trim());
+    if (existingProduct) {
+      pId = existingProduct.id;
+      productToUse = existingProduct;
+    } else {
+      pId = uuidv4();
+      productToUse = {
+        id: pId,
+        name: productName.trim(),
+        variant: productVariant.trim(),
+        price: productPrice,
+        stock: 0,
+        purchaseQuantity: 0,
+        updatedAt: Date.now()
+      };
+      setProducts(prev => [...prev, productToUse]);
+    }
+
+    const subtotal = calculateSubtotal(productToUse, requestedQuantity);
+
+    const newOrder: Order = {
+      id: uuidv4(),
+      productId: pId,
+      customerId: customer.id,
+      requestedQuantity,
+      allocatedQuantity,
+      note,
+      isUrgent,
+      subtotal,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    setOrders(prev => [...prev, newOrder]);
+    setIsAddOrderModalOpen(false);
+    
+    // Reset form
+    setProductName('');
+    setProductVariant('');
+    setProductPrice(0);
+    setRequestedQuantity(1);
+    setAllocatedQuantity(0);
+    setNote('');
+    setIsUrgent(false);
+  };
   
   // Local state for editing orders
   const customerOrders = useMemo(() => orders.filter(o => o.customerId === customer.id), [orders, customer.id]);
@@ -43,12 +114,12 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
       return `${product?.name || '未知商品'} ${product?.variant ? `(${product.variant})` : ''} x ${o.requestedQuantity} $${product?.price || 0}`;
     }).join('\n');
 
-    return `親愛的 ${customer.name}您好，
+    return `親愛的 ${customer.name} 您好，
 您本次的連線購物明細如下：
 
 ${orderItemsText}
 ----------------
-消費總額：${totalAmount.toFixed(0)}
+消費總額：$${totalAmount.toLocaleString()}
 
 ${notificationTemplate}`;
   }, [customer.name, customerOrders, products, totalAmount, notificationTemplate]);
@@ -69,9 +140,14 @@ ${notificationTemplate}`;
             <h3 className="text-2xl font-bold text-gray-900">{customer.name} 的訂單明細</h3>
             <p className="text-sm text-gray-500 mt-1">配單數代表已配到幾個，欠數代表還差幾個</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsAddOrderModalOpen(true)} className="btn-primary flex items-center gap-2">
+              <Plus size={18} /> 新增訂單
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -87,6 +163,7 @@ ${notificationTemplate}`;
                   <th className="py-3 px-2 w-20 text-red-500">欠數</th>
                   <th className="py-3 px-2 w-24">單價</th>
                   <th className="py-3 px-2 w-28">總價</th>
+                  <th className="py-3 px-2 w-24">建立日期</th>
                   <th className="py-3 px-2 w-12"></th>
                 </tr>
               </thead>
@@ -163,6 +240,9 @@ ${notificationTemplate}`;
                           onChange={(e) => handleUpdateOrder(order.id, { subtotal: Number(e.target.value) })}
                         />
                       </td>
+                      <td className="py-3 px-2 text-sm text-gray-500">
+                        {formatInTimeZone(new Date(order.createdAt), 'Asia/Taipei', 'yyyy/MM/dd')}
+                      </td>
                       <td className="py-3 px-2">
                         <button 
                           onClick={() => handleDeleteOrder(order.id)}
@@ -210,6 +290,119 @@ ${notificationTemplate}`;
           </button>
         </div>
       </div>
+
+      {/* Add Order Modal */}
+      {isAddOrderModalOpen && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4">
+          <div className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">新增訂單</h3>
+            <div className="space-y-4">
+              <div className="p-4 bg-[var(--color-bg)] rounded-lg border border-[var(--color-border)] space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">商品名稱</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={productName} 
+                    onChange={e => setProductName(e.target.value)}
+                    list="modal-products-list"
+                    placeholder="輸入或選擇商品"
+                  />
+                  <datalist id="modal-products-list">
+                    {Array.from(new Set(products.map(p => p.name))).map(name => <option key={name} value={name} />)}
+                  </datalist>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">款式/規格</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    value={productVariant} 
+                    onChange={e => setProductVariant(e.target.value)}
+                    list="modal-variants-list"
+                    placeholder="例如：紅色 M"
+                  />
+                  <datalist id="modal-variants-list">
+                    {products.filter(p => p.name === productName).map(p => p.variant).map((v, i) => <option key={i} value={v} />)}
+                  </datalist>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">單價</label>
+                    <input 
+                      type="number" 
+                      className="input-field" 
+                      value={productPrice} 
+                      onChange={e => setProductPrice(Number(e.target.value))} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">喊單數量</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      className="input-field" 
+                      value={requestedQuantity} 
+                      onChange={e => setRequestedQuantity(Number(e.target.value))} 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">已配貨數量</label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    className="input-field" 
+                    value={allocatedQuantity} 
+                    onChange={e => setAllocatedQuantity(Number(e.target.value))} 
+                  />
+                </div>
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                      checked={isUrgent}
+                      onChange={e => setIsUrgent(e.target.checked)}
+                    />
+                    <span className="text-sm font-medium text-red-600">標記為緊急</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">備註 (選填)</label>
+                <textarea 
+                  className="input-field min-h-[80px]" 
+                  value={note} 
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="例如：客人說要送人的，請包裝好"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--color-border)]">
+                <button 
+                  onClick={() => setIsAddOrderModalOpen(false)} 
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleSaveOrder} 
+                  className="btn-primary"
+                >
+                  儲存訂單
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ export interface Product {
   variant: string;
   stock: number; // This will remain as "Allocated Total" or "Current Stock"
   purchaseQuantity: number; // New field: "Bought quantity"
+  lossQuantity?: number; // New field: "Damaged/Lost quantity"
   price: number;
   discountMode?: 'none' | 'pair' | 'bulk';
   discountThreshold?: number;

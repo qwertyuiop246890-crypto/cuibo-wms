@@ -101,11 +101,10 @@ export default function ProductsTab({ products, setProducts, orders }: Props) {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text)] opacity-50" size={20} />
         <input 
           type="text" 
           placeholder="搜尋商品..." 
-          className="input-field pl-10"
+          className="input-field"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -118,7 +117,11 @@ export default function ProductsTab({ products, setProducts, orders }: Props) {
           const needsPurchase = Math.max(0, totalRequested - (product.purchaseQuantity || 0));
 
           return (
-            <div key={product.id} className="card p-5 flex flex-col justify-between">
+            <div 
+              key={product.id} 
+              className="card p-5 flex flex-col justify-between cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handleOpenModal(product)}
+            >
               <div>
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-bold text-lg">{product.name}</h3>
@@ -136,7 +139,7 @@ export default function ProductsTab({ products, setProducts, orders }: Props) {
                   <p className="text-[10px] text-gray-400 mt-2">最後更新： {formatInTimeZone(new Date(product.updatedAt), 'Asia/Taipei', 'yyyyMMddHHmm')}</p>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-4 border-t border-[var(--color-border)]">
+              <div className="flex justify-end gap-2 pt-4 border-t border-[var(--color-border)]" onClick={e => e.stopPropagation()}>
                 <button onClick={() => handleOpenModal(product)} className="p-2 text-[var(--color-primary)] hover:bg-[var(--color-bg)] rounded-full transition-colors">
                   <Edit2 size={16} />
                 </button>

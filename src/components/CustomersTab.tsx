@@ -29,7 +29,7 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
   const [totalSpent, setTotalSpent] = useState(0);
 
   const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    c.name.replace(/\s+/g, '').toLowerCase().includes(searchTerm.replace(/\s+/g, '').toLowerCase())
   );
 
   const handleOpenModal = (customer?: Customer) => {
@@ -51,11 +51,18 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
   };
 
   const handleSave = () => {
-    if (!name) return showAlert("提示", "請輸入顧客姓名");
+    const sanitizedName = name.replace(/\s+/g, '');
+    if (!sanitizedName) return showAlert("提示", "請輸入顧客姓名");
+
+    // Check if customer with same name already exists
+    const existingCustomer = customers.find(c => c.name.replace(/\s+/g, '') === sanitizedName && c.id !== editingCustomer?.id);
+    if (existingCustomer) {
+      return showAlert("提示", "此顧客名稱已存在");
+    }
 
     const newCustomer: Customer = {
       id: editingCustomer ? editingCustomer.id : uuidv4(),
-      name,
+      name: sanitizedName,
       totalSpent,
       updatedAt: Date.now()
     };
@@ -107,11 +114,10 @@ ${notificationTemplate}`;
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text)] opacity-50" size={20} />
         <input 
           type="text" 
           placeholder="搜尋顧客..." 
-          className="input-field pl-10"
+          className="input-field"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

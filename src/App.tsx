@@ -37,7 +37,7 @@ export default function App() {
 𐙚 收到所有連結後請盡速完成付款
  不要耽誤到最佳的賞味期限唷
 💡 小小提醒：
-再麻煩於 ??/?? 號前幫我完成付款，以免影響您之後的購買權益哦！
+再麻煩於 ？號前幫我完成付款，以免影響您之後的購買權益哦！
 如果期間內有困難無法付款，請務必提早私訊告知我。若是無故拖延或於約定時間未付款，以後就只能「預先儲值」才能幫您代購喊單了，再請大家多多配合與體諒 ♡
 
 ⚝ p.s. 前一次連線有開箱分享的朋友~
@@ -423,9 +423,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center text-center gap-6">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--color-primary)] flex items-center justify-center text-white font-bold text-3xl">
-            C
-          </div>
+          <img src="/logo.png" alt="Cuibo Logo" className="w-24 h-24 object-contain drop-shadow-sm" />
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Cuibo 倉管系統</h1>
             <p className="text-[var(--color-text)] opacity-60 mt-2">請登入以同步您的資料</p>
@@ -448,9 +446,7 @@ export default function App() {
       <header className="bg-white border-b border-[var(--color-border)] sticky top-0 z-10 no-print">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)] flex items-center justify-center text-white font-bold text-lg shrink-0">
-              C
-            </div>
+            <img src="/logo.png" alt="Cuibo Logo" className="w-10 h-10 object-contain shrink-0 drop-shadow-sm" />
             <div>
               <h1 className="text-lg font-bold text-[var(--color-text)] leading-tight">Cuibo 倉管系統</h1>
               <p className="text-[10px] text-[var(--color-text)] opacity-60 flex items-center gap-1">
