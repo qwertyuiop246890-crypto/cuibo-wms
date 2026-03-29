@@ -132,14 +132,15 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
               </div>
 
               {/* Receipt Items */}
-              <table className="w-full text-left border-collapse mb-6 print:mb-10 print:text-3xl print:table">
+              <table className="w-full text-left border-collapse mb-6 print:mb-10 print:text-3xl print:table table-fixed">
                 <thead className="print:table-header-group">
                   <tr className="border-b border-dashed border-[var(--color-border)] text-sm print:text-2xl opacity-70">
-                    <th className="w-10 print:w-16 py-2 print:py-6"></th>
-                    <th className="py-2 print:py-6">商品名稱</th>
-                    <th className="py-2 print:py-6">規格</th>
-                    <th className="py-2 print:py-6 text-center">數量</th>
-                    <th className="py-2 print:py-6 text-right">總金額</th>
+                    <th className="w-8 print:w-16 py-2 print:py-6"></th>
+                    <th className="w-[35%] py-2 print:py-6">商品名稱</th>
+                    <th className="w-[20%] py-2 print:py-6">規格</th>
+                    <th className="w-[15%] py-2 print:py-6 text-center">數量</th>
+                    <th className="w-[15%] py-2 print:py-6 text-right">單價</th>
+                    <th className="w-[15%] py-2 print:py-6 text-right">總金額</th>
                   </tr>
                 </thead>
                 <tbody className="print:table-row-group">
@@ -147,15 +148,34 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
                     const product = products.find(p => p.id === order.productId);
                     if (!product || order.allocatedQuantity === 0) return null;
 
+                    const unitPrice = order.recalculatedSubtotal / order.allocatedQuantity;
+
                     return (
                       <tr key={order.id} className="border-b border-dashed border-gray-200 last:border-0">
-                        <td className="py-3 print:py-6">
+                        <td className="py-3 print:py-6 align-middle">
                           <div className="w-5 h-5 border-2 border-[var(--color-text)] rounded-sm print:w-10 print:h-10 print:border-4"></div>
                         </td>
-                        <td className="py-3 print:py-6 font-medium text-[var(--color-text)] pr-2">{product.name}</td>
-                        <td className="py-3 print:py-6 text-[var(--color-text)] opacity-80 pr-2">{product.variant || '-'}</td>
-                        <td className="py-3 print:py-6 text-center text-[var(--color-text)]">{order.allocatedQuantity}</td>
-                        <td className="py-3 print:py-6 text-right font-medium text-[var(--color-text)]">
+                        <td className="py-3 print:py-6 pr-2 align-middle">
+                          <div 
+                            className={`font-medium text-[var(--color-text)] break-words leading-tight ${
+                              product.name.length > 15 ? 'text-xs print:text-xl' : 
+                              product.name.length > 8 ? 'text-sm print:text-2xl' : 
+                              'text-base print:text-3xl'
+                            }`}
+                          >
+                            {product.name}
+                          </div>
+                        </td>
+                        <td className="py-3 print:py-6 text-[var(--color-text)] opacity-80 pr-2 align-middle break-words">
+                          <div className={product.variant && product.variant.length > 10 ? 'text-xs print:text-xl' : 'text-sm print:text-2xl'}>
+                            {product.variant || '-'}
+                          </div>
+                        </td>
+                        <td className="py-3 print:py-6 text-center text-[var(--color-text)] align-middle text-sm print:text-2xl">{order.allocatedQuantity}</td>
+                        <td className="py-3 print:py-6 text-right text-[var(--color-text)] opacity-80 align-middle text-sm print:text-2xl">
+                          ${unitPrice.toFixed(2)}
+                        </td>
+                        <td className="py-3 print:py-6 text-right font-medium text-[var(--color-text)] align-middle text-sm print:text-2xl">
                           ${order.recalculatedSubtotal.toFixed(2)}
                         </td>
                       </tr>

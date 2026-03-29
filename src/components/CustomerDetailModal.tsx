@@ -53,7 +53,7 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
         id: pId,
         name: productName.trim(),
         variant: productVariant.trim(),
-        price: productPrice,
+        price: Math.max(0, productPrice || 0),
         stock: 0,
         purchaseQuantity: 0,
         updatedAt: Date.now()
@@ -61,13 +61,14 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
       setProducts(prev => [...prev, productToUse]);
     }
 
-    const subtotal = calculateSubtotal(productToUse, requestedQuantity);
+    const qty = Math.max(1, requestedQuantity || 1);
+    const subtotal = calculateSubtotal(productToUse, qty);
 
     const newOrder: Order = {
       id: uuidv4(),
       productId: pId,
       customerId: customer.id,
-      requestedQuantity,
+      requestedQuantity: qty,
       allocatedQuantity,
       note,
       isUrgent,
@@ -197,7 +198,7 @@ ${notificationTemplate}`;
                           className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-medium"
                           value={order.requestedQuantity}
                           onChange={(e) => {
-                            const qty = Number(e.target.value);
+                            const qty = Math.max(1, Number(e.target.value) || 1);
                             const subtotal = calculateSubtotal(product, qty);
                             handleUpdateOrder(order.id, { requestedQuantity: qty, subtotal });
                           }}
@@ -210,7 +211,7 @@ ${notificationTemplate}`;
                             order.allocatedQuantity < order.requestedQuantity ? 'text-red-500' : 'text-green-600'
                           }`}
                           value={order.allocatedQuantity}
-                          onChange={(e) => handleUpdateOrder(order.id, { allocatedQuantity: Number(e.target.value) })}
+                          onChange={(e) => handleUpdateOrder(order.id, { allocatedQuantity: Math.max(0, Number(e.target.value) || 0) })}
                         />
                       </td>
                       <td className="py-3 px-2">
@@ -224,7 +225,7 @@ ${notificationTemplate}`;
                           className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
                           value={product.price}
                           onChange={(e) => {
-                            const price = Number(e.target.value);
+                            const price = Math.max(0, Number(e.target.value) || 0);
                             const updatedProduct = { ...product, price };
                             const subtotal = calculateSubtotal(updatedProduct, order.requestedQuantity);
                             handleUpdateProduct(product.id, { price });
@@ -359,7 +360,7 @@ ${notificationTemplate}`;
                     min="0" 
                     className="input-field" 
                     value={allocatedQuantity} 
-                    onChange={e => setAllocatedQuantity(Number(e.target.value))} 
+                    onChange={e => setAllocatedQuantity(Math.max(0, Number(e.target.value) || 0))} 
                   />
                 </div>
                 <div className="flex items-end pb-2">

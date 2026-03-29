@@ -231,7 +231,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                               min="0"
                               max={order.requestedQuantity}
                               value={order.allocatedQuantity}
-                              onChange={(e) => handleAllocate(order.id, parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleAllocate(order.id, Math.max(0, parseInt(e.target.value) || 0))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                             />
                           </div>

@@ -68,12 +68,13 @@ export default function ProductsTab({ products, setProducts, orders }: Props) {
       id: editingProduct ? editingProduct.id : uuidv4(),
       name,
       variant,
-      purchaseQuantity: editingProduct ? editingProduct.purchaseQuantity : 0,
-      stock: editingProduct ? editingProduct.stock : 0,
-      price,
+      purchaseQuantity: editingProduct?.purchaseQuantity || 0,
+      lossQuantity: editingProduct?.lossQuantity || 0,
+      stock: editingProduct?.stock || 0,
+      price: Math.max(0, price || 0),
       discountMode,
-      discountThreshold,
-      discountPrice,
+      discountThreshold: Math.max(0, discountThreshold || 0),
+      discountPrice: Math.max(0, discountPrice || 0),
       updatedAt: Date.now()
     };
 

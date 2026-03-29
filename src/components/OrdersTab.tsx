@@ -61,9 +61,9 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       setProductName(p?.name || '');
       setProductVariant(p?.variant || '');
       setProductPrice(p?.price || 0);
-      setRequestedQuantity(order.requestedQuantity);
-      setAllocatedQuantity(order.allocatedQuantity);
-      setNote(order.note);
+      setRequestedQuantity(order.requestedQuantity || 1);
+      setAllocatedQuantity(order.allocatedQuantity || 0);
+      setNote(order.note || '');
       setIsUrgent(order.isUrgent || false);
       setCreatedAt(order.createdAt || Date.now());
     } else {
@@ -112,7 +112,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
         id: pId,
         name: productName.trim(),
         variant: productVariant.trim(),
-        price: productPrice,
+        price: Math.max(0, productPrice || 0),
         stock: 0,
         purchaseQuantity: 0,
         updatedAt: Date.now()
@@ -120,13 +120,14 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       setProducts([...products, productToUse]);
     }
 
-    const subtotal = calculateSubtotal(productToUse, requestedQuantity);
+    const qty = Math.max(1, requestedQuantity || 1);
+    const subtotal = calculateSubtotal(productToUse, qty);
 
     const newOrder: Order = {
       id: editingOrder ? editingOrder.id : uuidv4(),
       productId: pId,
       customerId: cId,
-      requestedQuantity,
+      requestedQuantity: qty,
       allocatedQuantity,
       note,
       isUrgent,

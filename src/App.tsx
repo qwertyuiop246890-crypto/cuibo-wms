@@ -102,12 +102,12 @@ export default function App() {
       (snapshot) => {
         if (snapshot.empty && isInitialLoad) {
           // Add defaults if everything is empty
-          const defaultProducts = [
-            { id: uuidv4(), name: '經典扭蛋', variant: 'A款', purchaseQuantity: Math.floor(Math.random() * 50) + 10, stock: 0, price: 100, updatedAt: Date.now() },
-            { id: uuidv4(), name: '經典扭蛋', variant: 'B款', purchaseQuantity: Math.floor(Math.random() * 50) + 10, stock: 0, price: 100, updatedAt: Date.now() },
-            { id: uuidv4(), name: '限量公仔', variant: '金', purchaseQuantity: Math.floor(Math.random() * 20) + 5, stock: 0, price: 500, updatedAt: Date.now() },
-            { id: uuidv4(), name: '限量公仔', variant: '銀', purchaseQuantity: Math.floor(Math.random() * 20) + 5, stock: 0, price: 450, updatedAt: Date.now() },
-            { id: uuidv4(), name: '造型吊飾', variant: '隨機', purchaseQuantity: Math.floor(Math.random() * 100) + 20, stock: 0, price: 150, updatedAt: Date.now() },
+          const defaultProducts: Product[] = [
+            { id: uuidv4(), name: '經典扭蛋', variant: 'A款', purchaseQuantity: Math.floor(Math.random() * 50) + 10, lossQuantity: 0, stock: 0, price: 100, discountMode: 'none', discountThreshold: 2, discountPrice: 0, updatedAt: Date.now() },
+            { id: uuidv4(), name: '經典扭蛋', variant: 'B款', purchaseQuantity: Math.floor(Math.random() * 50) + 10, lossQuantity: 0, stock: 0, price: 100, discountMode: 'none', discountThreshold: 2, discountPrice: 0, updatedAt: Date.now() },
+            { id: uuidv4(), name: '限量公仔', variant: '金', purchaseQuantity: Math.floor(Math.random() * 20) + 5, lossQuantity: 0, stock: 0, price: 500, discountMode: 'none', discountThreshold: 2, discountPrice: 0, updatedAt: Date.now() },
+            { id: uuidv4(), name: '限量公仔', variant: '銀', purchaseQuantity: Math.floor(Math.random() * 20) + 5, lossQuantity: 0, stock: 0, price: 450, discountMode: 'none', discountThreshold: 2, discountPrice: 0, updatedAt: Date.now() },
+            { id: uuidv4(), name: '造型吊飾', variant: '隨機', purchaseQuantity: Math.floor(Math.random() * 100) + 20, lossQuantity: 0, stock: 0, price: 150, discountMode: 'none', discountThreshold: 2, discountPrice: 0, updatedAt: Date.now() },
           ];
           defaultProducts.forEach(p => saveProduct(p));
         } else {
@@ -174,7 +174,20 @@ export default function App() {
     if (!user) return;
     try {
       const path = `users/${user.uid}/products/${product.id}`;
-      await setDoc(doc(db, path), product);
+      const sanitizedProduct = {
+        id: product.id,
+        name: product.name,
+        variant: product.variant || '',
+        purchaseQuantity: product.purchaseQuantity || 0,
+        lossQuantity: product.lossQuantity || 0,
+        stock: product.stock || 0,
+        price: Math.max(0, product.price || 0),
+        discountMode: product.discountMode || 'none',
+        discountThreshold: Math.max(0, product.discountThreshold || 0),
+        discountPrice: Math.max(0, product.discountPrice || 0),
+        updatedAt: product.updatedAt || Date.now(),
+      };
+      await setDoc(doc(db, path), sanitizedProduct);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/products/${product.id}`);
     }
@@ -184,7 +197,13 @@ export default function App() {
     if (!user) return;
     try {
       const path = `users/${user.uid}/customers/${customer.id}`;
-      await setDoc(doc(db, path), customer);
+      const sanitizedCustomer = {
+        id: customer.id,
+        name: customer.name || '',
+        totalSpent: Math.max(0, customer.totalSpent || 0),
+        updatedAt: customer.updatedAt || Date.now(),
+      };
+      await setDoc(doc(db, path), sanitizedCustomer);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/customers/${customer.id}`);
     }
@@ -194,7 +213,19 @@ export default function App() {
     if (!user) return;
     try {
       const path = `users/${user.uid}/orders/${order.id}`;
-      await setDoc(doc(db, path), order);
+      const sanitizedOrder = {
+        id: order.id,
+        productId: order.productId,
+        customerId: order.customerId,
+        requestedQuantity: Math.max(1, order.requestedQuantity || 1),
+        allocatedQuantity: Math.max(0, order.allocatedQuantity || 0),
+        subtotal: Math.max(0, order.subtotal || 0),
+        note: order.note || '',
+        isUrgent: order.isUrgent || false,
+        createdAt: order.createdAt || Date.now(),
+        updatedAt: order.updatedAt || Date.now(),
+      };
+      await setDoc(doc(db, path), sanitizedOrder);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/orders/${order.id}`);
     }

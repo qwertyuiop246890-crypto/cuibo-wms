@@ -35,8 +35,8 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
     
     const updatedProduct: Product = {
       ...selectedProduct,
-      purchaseQuantity: (selectedProduct.purchaseQuantity || 0) + newPurchaseQty,
-      lossQuantity: (selectedProduct.lossQuantity || 0) + newLossQty,
+      purchaseQuantity: Math.max(0, (selectedProduct.purchaseQuantity || 0) + (newPurchaseQty || 0)),
+      lossQuantity: Math.max(0, (selectedProduct.lossQuantity || 0) + (newLossQty || 0)),
       updatedAt: Date.now()
     };
 
@@ -115,25 +115,29 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="bg-gray-50 p-2 rounded">
-                    <p className="text-[10px] text-gray-500 uppercase">目前庫存</p>
-                    <p className="text-lg font-bold">{product.purchaseQuantity || 0}</p>
+                  <div className="bg-purple-50 p-2 rounded">
+                    <p className="text-[10px] text-purple-600 uppercase">總進貨</p>
+                    <p className="text-lg font-bold text-purple-700">{product.purchaseQuantity || 0}</p>
                   </div>
-                  <div className="bg-red-50 p-2 rounded">
-                    <p className="text-[10px] text-red-500 uppercase">耗損數量</p>
-                    <p className="text-lg font-bold text-red-600">{product.lossQuantity || 0}</p>
-                  </div>
-                  <div className="bg-blue-50 p-2 rounded">
-                    <p className="text-[10px] text-blue-500 uppercase">目前配單數量</p>
-                    <p className="text-lg font-bold text-blue-600">{totalAllocated}</p>
+                  <div className="bg-green-50 p-2 rounded">
+                    <p className="text-[10px] text-green-600 uppercase">總庫存</p>
+                    <p className="text-lg font-bold text-green-700">{(product.purchaseQuantity || 0) - totalAllocated - (product.lossQuantity || 0)}</p>
                   </div>
                   <div className="bg-gray-50 p-2 rounded">
-                    <p className="text-[10px] text-gray-500 uppercase">需求總數</p>
+                    <p className="text-[10px] text-gray-500 uppercase">總需求</p>
                     <p className="text-lg font-bold">{totalRequested}</p>
                   </div>
-                  <div className={`p-2 rounded col-span-2 ${needsPurchase > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
+                  <div className="bg-blue-50 p-2 rounded">
+                    <p className="text-[10px] text-blue-500 uppercase">總配單</p>
+                    <p className="text-lg font-bold text-blue-600">{totalAllocated}</p>
+                  </div>
+                  <div className={`p-2 rounded ${needsPurchase > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
                     <p className="text-[10px] text-gray-500 uppercase">待採購</p>
                     <p className={`text-lg font-bold ${needsPurchase > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{needsPurchase}</p>
+                  </div>
+                  <div className="bg-red-50 p-2 rounded">
+                    <p className="text-[10px] text-red-500 uppercase">總耗損</p>
+                    <p className="text-lg font-bold text-red-600">{product.lossQuantity || 0}</p>
                   </div>
                 </div>
               </div>

@@ -12,7 +12,9 @@
         "lossQuantity": { "type": "number" },
         "stock": { "type": "number" },
         "price": { "type": "number" },
-        "discountSettings": { "type": "string" },
+        "discountMode": { "type": "string" },
+        "discountThreshold": { "type": "number" },
+        "discountPrice": { "type": "number" },
         "updatedAt": { "type": "number" }
       },
       "required": ["id", "name", "updatedAt"]
