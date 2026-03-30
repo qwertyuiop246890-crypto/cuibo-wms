@@ -162,6 +162,7 @@ ${notificationTemplate}`;
                   <th className="py-3 px-2 w-20">需求數</th>
                   <th className="py-3 px-2 w-20">配單數</th>
                   <th className="py-3 px-2 w-20 text-red-500">欠數</th>
+                  <th className="py-3 px-2 w-16 text-center">到貨</th>
                   <th className="py-3 px-2 w-24">單價</th>
                   <th className="py-3 px-2 w-28">總價</th>
                   <th className="py-3 px-2 w-24">建立日期</th>
@@ -218,6 +219,14 @@ ${notificationTemplate}`;
                         <span className={`font-bold ${owed > 0 ? 'text-red-600' : 'text-gray-300'}`}>
                           {owed}
                         </span>
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 rounded border-gray-300 text-green-500 focus:ring-green-500 cursor-pointer"
+                          checked={!!order.isArrived}
+                          onChange={(e) => handleUpdateOrder(order.id, { isArrived: e.target.checked })}
+                        />
                       </td>
                       <td className="py-3 px-2">
                         <input 

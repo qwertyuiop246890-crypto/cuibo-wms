@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Search, AlertCircle, DollarSign } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
+import { startOfDay, endOfDay, parseISO, isWithinInterval } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Order, Product, Customer } from '../types';
 import { useDialog } from '../hooks/useDialog';
@@ -18,6 +19,8 @@ interface Props {
 export default function OrdersTab({ orders, setOrders, products, setProducts, customers, setCustomers }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
@@ -32,17 +35,31 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   const [isUrgent, setIsUrgent] = useState(false);
   const [createdAt, setCreatedAt] = useState(Date.now());
 
-  const filteredOrders = orders.filter(o => {
-    const p = products.find(p => p.id === o.productId);
-    const c = customers.find(c => c.id === o.customerId);
-    const searchLower = searchTerm.toLowerCase();
-    const searchNoSpace = searchTerm.replace(/\s+/g, '').toLowerCase();
-    return (
-      (p && p.name.toLowerCase().includes(searchLower)) ||
-      (c && c.name.replace(/\s+/g, '').toLowerCase().includes(searchNoSpace)) ||
-      o.note.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const p = products.find(p => p.id === o.productId);
+      const c = customers.find(c => c.id === o.customerId);
+      const searchLower = searchTerm.toLowerCase();
+      const searchNoSpace = searchTerm.replace(/\s+/g, '').toLowerCase();
+      
+      const matchesSearch = (
+        (p && p.name.toLowerCase().includes(searchLower)) ||
+        (c && c.name.replace(/\s+/g, '').toLowerCase().includes(searchNoSpace)) ||
+        o.note.toLowerCase().includes(searchLower)
+      );
+
+      const orderDate = new Date(o.createdAt);
+      const start = startDate ? startOfDay(parseISO(startDate)) : new Date(0);
+      const end = endDate ? endOfDay(parseISO(endDate)) : new Date(8640000000000000);
+      const matchesDate = isWithinInterval(orderDate, { start, end });
+
+      return matchesSearch && matchesDate;
+    });
+  }, [orders, products, customers, searchTerm, startDate, endDate]);
+
+  const totalAmount = useMemo(() => {
+    return filteredOrders.reduce((sum, order) => sum + order.subtotal, 0);
+  }, [filteredOrders]);
 
   // Auto-fill price when product name and variant match an existing product
   useEffect(() => {
@@ -167,14 +184,43 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
         </button>
       </div>
 
-      <div className="relative">
-        <input 
-          type="text" 
-          placeholder="依商品或顧客搜尋訂單..." 
-          className="input-field"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <input 
+            type="text" 
+            placeholder="依商品或顧客搜尋訂單..." 
+            className="input-field"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent"
+          />
+          <span className="text-gray-400">-</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent"
+          />
+          {(startDate || endDate) && (
+            <button 
+              onClick={() => { setStartDate(''); setEndDate(''); }}
+              className="text-xs text-red-500 hover:text-red-700 px-2"
+            >
+              清除
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+          <DollarSign size={18} className="text-[var(--color-primary)]" />
+          <span className="font-bold text-[var(--color-text)]">總計: ${totalAmount.toLocaleString()}</span>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">

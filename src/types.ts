@@ -28,6 +28,7 @@ export interface Order {
   note: string;
   isUrgent: boolean;
   subtotal: number;
+  isArrived?: boolean;
   createdAt: number;
   updatedAt: number;
 }

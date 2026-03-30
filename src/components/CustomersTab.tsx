@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, ExternalLink, Copy } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { v4 as uuidv4 } from 'uuid';
 import { Customer, Order, Product } from '../types';
@@ -19,6 +19,8 @@ interface Props {
 export default function CustomersTab({ customers, setCustomers, orders, setOrders, products, setProducts, notificationTemplate }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'amount' | 'name'>('amount');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'allocated' | 'arrived'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -28,9 +30,38 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
   const [name, setName] = useState('');
   const [totalSpent, setTotalSpent] = useState(0);
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.replace(/\s+/g, '').toLowerCase().includes(searchTerm.replace(/\s+/g, '').toLowerCase())
-  );
+  const getCustomerStatus = (customerId: string) => {
+    const customerOrders = orders.filter(o => o.customerId === customerId);
+    if (customerOrders.length === 0) return { allAllocated: false, allArrived: false };
+
+    const allAllocated = customerOrders.every(o => o.allocatedQuantity >= o.requestedQuantity);
+    const allArrived = customerOrders.every(o => o.isArrived);
+
+    return { allAllocated, allArrived };
+  };
+
+  const filteredCustomers = useMemo(() => {
+    let result = customers.filter(c => 
+      c.name.replace(/\s+/g, '').toLowerCase().includes(searchTerm.replace(/\s+/g, '').toLowerCase())
+    );
+
+    if (filterStatus === 'allocated') {
+      result = result.filter(c => {
+        const status = getCustomerStatus(c.id);
+        return status.allAllocated && !status.allArrived;
+      });
+    } else if (filterStatus === 'arrived') {
+      result = result.filter(c => getCustomerStatus(c.id).allArrived);
+    }
+
+    if (sortBy === 'amount') {
+      result.sort((a, b) => b.totalSpent - a.totalSpent);
+    } else if (sortBy === 'name') {
+      result.sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
+    }
+
+    return result;
+  }, [customers, orders, searchTerm, sortBy, filterStatus]);
 
   const handleOpenModal = (customer?: Customer) => {
     if (customer) {
@@ -113,20 +144,57 @@ ${notificationTemplate}`;
         </button>
       </div>
 
-      <div className="relative">
-        <input 
-          type="text" 
-          placeholder="搜尋顧客..." 
-          className="input-field"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <input 
+            type="text" 
+            placeholder="搜尋顧客..." 
+            className="input-field"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+          <span className="text-sm text-gray-500 pl-2">狀態：</span>
+          <select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value as 'all' | 'allocated' | 'arrived')}
+            className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent outline-none"
+          >
+            <option value="all">全部</option>
+            <option value="allocated">全部已配單</option>
+            <option value="arrived">全部已到貨</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+          <span className="text-sm text-gray-500 pl-2">排序：</span>
+          <select 
+            value={sortBy} 
+            onChange={(e) => setSortBy(e.target.value as 'amount' | 'name')}
+            className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent outline-none"
+          >
+            <option value="amount">消費金額 (高至低)</option>
+            <option value="name">名稱筆畫</option>
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map(customer => (
-          <div key={customer.id} className="card p-5 flex flex-col justify-between hover:border-blue-300 transition-colors group">
-            <div onClick={() => handleOpenDetail(customer)} className="cursor-pointer">
+        {filteredCustomers.map(customer => {
+          const { allAllocated, allArrived } = getCustomerStatus(customer.id);
+          return (
+          <div key={customer.id} className="card p-5 flex flex-col justify-between hover:border-blue-300 transition-colors group relative overflow-hidden">
+            {allArrived && (
+              <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                <PackageCheck size={12} /> 全部已到貨
+              </div>
+            )}
+            {!allArrived && allAllocated && (
+              <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                <CheckCircle size={12} /> 全部已配單
+              </div>
+            )}
+            <div onClick={() => handleOpenDetail(customer)} className="cursor-pointer mt-2">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="font-bold text-lg group-hover:text-blue-600 transition-colors flex items-center gap-2">
                   {customer.name}
@@ -150,7 +218,8 @@ ${notificationTemplate}`;
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
         {filteredCustomers.length === 0 && (
           <div className="col-span-full text-center py-10 opacity-60">
             找不到顧客。

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Package, Users, ShoppingCart, Printer, RefreshCw, Download, Upload, Settings, LogIn, LogOut } from 'lucide-react';
+import { Package, Users, ShoppingCart, Printer, RefreshCw, Download, Upload, Settings, LogIn, LogOut, TrendingUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Product, Customer, Order, AppState } from './types';
+import DashboardTab from './components/DashboardTab';
 import ProductsTab from './components/ProductsTab';
 import InventoryTab from './components/InventoryTab';
 import CustomersTab from './components/CustomersTab';
@@ -16,7 +17,7 @@ import { auth, db, googleProvider, signInWithPopup, onAuthStateChanged, User, ha
 import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query, orderBy, getDocs } from 'firebase/firestore';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'products' | 'inventory' | 'customers' | 'orders' | 'receipts' | 'settings' | 'picking'>('orders');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'inventory' | 'customers' | 'orders' | 'receipts' | 'settings' | 'picking'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -503,6 +504,7 @@ export default function App() {
         
         {/* Desktop Navigation Tabs */}
         <div className="hidden md:flex max-w-6xl mx-auto px-4 gap-6 overflow-x-auto hide-scrollbar">
+          <TabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={18} />} label="儀表板" />
           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={18} />} label="訂單" />
           <TabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={18} />} label="配貨" />
           <TabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={18} />} label="庫存" />
@@ -515,6 +517,9 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-4 md:py-8">
+        {activeTab === 'dashboard' && (
+          <DashboardTab products={products} customers={customers} orders={orders} />
+        )}
         {activeTab === 'products' && (
           <ProductsTab products={products} setProducts={setProductsWithSync} orders={orders} />
         )}
@@ -569,6 +574,7 @@ export default function App() {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] flex justify-around items-center py-2 px-1 z-50 no-print">
+        <MobileTabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="儀表板" />
         <MobileTabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={20} />} label="訂單" />
         <MobileTabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={20} />} label="配貨" />
         <MobileTabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="庫存" />
