@@ -98,7 +98,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = (action: 'close' | 'keepCustomer' | 'keepProduct' | 'keepBoth' | 'clearAll' = 'close') => {
     const sanitizedCustomerName = customerName.replace(/\s+/g, '');
     if (!sanitizedCustomerName || !productName.trim()) return showAlert("提示", "請輸入顧客與商品名稱");
 
@@ -155,10 +155,50 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
 
     if (editingOrder) {
       setOrders(orders.map(o => o.id === editingOrder.id ? newOrder : o));
+      setIsModalOpen(false);
     } else {
       setOrders([...orders, newOrder]);
+      
+      if (action === 'close') {
+        setIsModalOpen(false);
+      } else if (action === 'clearAll') {
+        setCustomerName('');
+        setProductName('');
+        setProductVariant('');
+        setProductPrice(0);
+        setRequestedQuantity(1);
+        setAllocatedQuantity(0);
+        setNote('');
+        setIsUrgent(false);
+        setCreatedAt(Date.now());
+        showAlert("成功", "已新增訂單，請繼續輸入");
+      } else if (action === 'keepCustomer') {
+        setProductName('');
+        setProductVariant('');
+        setProductPrice(0);
+        setRequestedQuantity(1);
+        setAllocatedQuantity(0);
+        setNote('');
+        setIsUrgent(false);
+        setCreatedAt(Date.now());
+        showAlert("成功", "已新增訂單，請繼續輸入商品");
+      } else if (action === 'keepProduct') {
+        setCustomerName('');
+        setRequestedQuantity(1);
+        setAllocatedQuantity(0);
+        setNote('');
+        setIsUrgent(false);
+        setCreatedAt(Date.now());
+        showAlert("成功", "已新增訂單，請繼續輸入顧客");
+      } else if (action === 'keepBoth') {
+        setRequestedQuantity(1);
+        setAllocatedQuantity(0);
+        setNote('');
+        setIsUrgent(false);
+        setCreatedAt(Date.now());
+        showAlert("成功", "已新增訂單，請繼續修改");
+      }
     }
-    setIsModalOpen(false);
   };
 
   const handleDelete = (id: string) => {
@@ -377,15 +417,15 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">{editingOrder ? '編輯訂單' : '新增訂單'}</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="card p-4 sm:p-5 w-full max-w-lg max-h-[95vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-3">{editingOrder ? '編輯訂單' : '新增訂單'}</h3>
+            <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1">顧客名稱</label>
                 <input 
                   type="text" 
-                  className="input-field" 
+                  className="input-field py-1.5" 
                   value={customerName} 
                   onChange={e => setCustomerName(e.target.value)}
                   list="customers-list"
@@ -396,43 +436,45 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                 </datalist>
               </div>
               
-              <div className="p-4 bg-[var(--color-bg)] rounded-lg border border-[var(--color-border)] space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">商品名稱</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    value={productName} 
-                    onChange={e => setProductName(e.target.value)}
-                    list="products-list"
-                    placeholder="輸入或選擇商品"
-                  />
-                  <datalist id="products-list">
-                    {uniqueProductNames.map(name => <option key={name} value={name} />)}
-                  </datalist>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-1">款式/規格</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    value={productVariant} 
-                    onChange={e => setProductVariant(e.target.value)}
-                    list="variants-list"
-                    placeholder="例如：紅色 M"
-                  />
-                  <datalist id="variants-list">
-                    {availableVariants.map((v, i) => <option key={i} value={v} />)}
-                  </datalist>
+              <div className="p-3 bg-[var(--color-bg)] rounded-lg border border-[var(--color-border)] space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">商品名稱</label>
+                    <input 
+                      type="text" 
+                      className="input-field py-1.5" 
+                      value={productName} 
+                      onChange={e => setProductName(e.target.value)}
+                      list="products-list"
+                      placeholder="輸入或選擇商品"
+                    />
+                    <datalist id="products-list">
+                      {uniqueProductNames.map(name => <option key={name} value={name} />)}
+                    </datalist>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">款式/規格</label>
+                    <input 
+                      type="text" 
+                      className="input-field py-1.5" 
+                      value={productVariant} 
+                      onChange={e => setProductVariant(e.target.value)}
+                      list="variants-list"
+                      placeholder="例如：紅色 M"
+                    />
+                    <datalist id="variants-list">
+                      {availableVariants.map((v, i) => <option key={i} value={v} />)}
+                    </datalist>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">單價</label>
                     <input 
                       type="number" 
-                      className="input-field" 
+                      className="input-field py-1.5" 
                       value={productPrice} 
                       onChange={e => setProductPrice(Number(e.target.value))} 
                     />
@@ -442,7 +484,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                     <input 
                       type="number" 
                       min="1" 
-                      className="input-field" 
+                      className="input-field py-1.5" 
                       value={requestedQuantity} 
                       onChange={e => setRequestedQuantity(Number(e.target.value))} 
                     />
@@ -452,7 +494,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
 
               <div>
                 <label className="block text-sm font-medium mb-1">備註</label>
-                <textarea className="input-field" rows={3} value={note} onChange={e => setNote(e.target.value)}></textarea>
+                <textarea className="input-field py-1.5" rows={2} value={note} onChange={e => setNote(e.target.value)}></textarea>
               </div>
 
               <div className="flex items-center gap-2">
@@ -468,9 +510,49 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                 </label>
               </div>
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setIsModalOpen(false)} className="btn-secondary">取消</button>
-              <button onClick={handleSave} className="btn-primary">儲存</button>
+            <div className="mt-4">
+              {editingOrder ? (
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setIsModalOpen(false)} className="btn-secondary py-1.5">取消</button>
+                  <button onClick={() => handleSave('close')} className="btn-primary py-1.5">儲存</button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => handleSave('keepCustomer')} 
+                      className="flex flex-col items-center justify-center p-2 bg-[#ff7a00] hover:bg-[#e66e00] text-white rounded-xl shadow-sm transition-colors"
+                    >
+                      <span className="font-bold text-base">同客續加</span>
+                      <span className="text-[10px] opacity-90">(清商品/留顧客)</span>
+                    </button>
+                    <button 
+                      onClick={() => handleSave('keepProduct')} 
+                      className="flex flex-col items-center justify-center p-2 bg-[#7a7068] hover:bg-[#665d56] text-white rounded-xl shadow-sm transition-colors"
+                    >
+                      <span className="font-bold text-base">同品換客</span>
+                      <span className="text-[10px] opacity-90">(留商品/清顧客)</span>
+                    </button>
+                    <button 
+                      onClick={() => handleSave('keepBoth')} 
+                      className="flex flex-col items-center justify-center p-2 bg-[#00cc52] hover:bg-[#00b347] text-white rounded-xl shadow-sm transition-colors"
+                    >
+                      <span className="font-bold text-base">同品同客</span>
+                      <span className="text-[10px] opacity-90">(全留/方便換款)</span>
+                    </button>
+                    <button 
+                      onClick={() => handleSave('clearAll')} 
+                      className="flex flex-col items-center justify-center p-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-xl shadow-sm transition-colors"
+                    >
+                      <span className="font-bold text-base">全新加單</span>
+                      <span className="text-[10px] opacity-90">(清空全部)</span>
+                    </button>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <button onClick={() => setIsModalOpen(false)} className="btn-secondary py-1.5 text-sm">關閉視窗</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
