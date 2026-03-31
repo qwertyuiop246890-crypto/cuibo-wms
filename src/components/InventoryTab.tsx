@@ -13,6 +13,7 @@ interface Props {
 export default function InventoryTab({ products, setProducts, orders }: Props) {
   const { showAlert } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
+  const [procurementSearchTerm, setProcurementSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [newPurchaseQty, setNewPurchaseQty] = useState(0);
@@ -52,6 +53,11 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
     return { ...product, totalRequested, needsPurchase };
   }).filter(p => p.needsPurchase > 0);
 
+  const filteredProcurementList = procurementList.filter(p => 
+    p.name.toLowerCase().includes(procurementSearchTerm.toLowerCase()) || 
+    p.variant.toLowerCase().includes(procurementSearchTerm.toLowerCase())
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -61,37 +67,55 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
       {/* Procurement Section */}
       {procurementList.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-4 text-orange-800">
-            <AlertCircle size={24} />
-            <h3 className="text-xl font-bold">待採購清單</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2 text-orange-800">
+              <AlertCircle size={24} />
+              <h3 className="text-xl font-bold">待採購清單</h3>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <input 
+                type="text" 
+                placeholder="搜尋待採購商品..." 
+                className="w-full px-4 py-2 rounded-lg border border-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm"
+                value={procurementSearchTerm}
+                onChange={(e) => setProcurementSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {procurementList.map(item => (
-              <div key={item.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col gap-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-bold text-gray-900">{item.name}</p>
-                    <p className="text-xs text-gray-500">{item.variant || '預設'}</p>
+          
+          {filteredProcurementList.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProcurementList.map(item => (
+                <div key={item.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-gray-900">{item.name}</p>
+                      <p className="text-xs text-gray-500">{item.variant || '預設'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-orange-600 font-bold uppercase">需採購</p>
+                      <p className="text-2xl font-black text-orange-600">{item.needsPurchase}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-orange-600 font-bold uppercase">需採購</p>
-                    <p className="text-2xl font-black text-orange-600">{item.needsPurchase}</p>
-                  </div>
+                  <button 
+                    onClick={() => {
+                      setSelectedProduct(item);
+                      setNewPurchaseQty(item.needsPurchase);
+                      setNewLossQty(0);
+                      setIsModalOpen(true);
+                    }}
+                    className="w-full py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-bold text-sm flex justify-center items-center gap-1"
+                  >
+                    <Package size={16} /> 登記已採購
+                  </button>
                 </div>
-                <button 
-                  onClick={() => {
-                    setSelectedProduct(item);
-                    setNewPurchaseQty(item.needsPurchase);
-                    setNewLossQty(0);
-                    setIsModalOpen(true);
-                  }}
-                  className="w-full py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-bold text-sm flex justify-center items-center gap-1"
-                >
-                  <Package size={16} /> 登記已採購
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-orange-600/60 font-medium">
+              找不到符合的待採購商品
+            </div>
+          )}
         </div>
       )}
 
