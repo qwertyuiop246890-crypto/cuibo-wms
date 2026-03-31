@@ -70,6 +70,7 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
       customerId: customer.id,
       requestedQuantity: qty,
       allocatedQuantity,
+      arrivedQuantity: 0,
       note,
       isUrgent,
       subtotal,
@@ -108,6 +109,15 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   };
 
   const totalAmount = customerOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const totalRequested = customerOrders.reduce((sum, o) => sum + o.requestedQuantity, 0);
+  const totalAllocated = customerOrders.reduce((sum, o) => sum + o.allocatedQuantity, 0);
+  const totalArrived = customerOrders.reduce((sum, o) => sum + (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)), 0);
+  
+  const hasAllocated = customerOrders.some(o => o.allocatedQuantity > 0);
+  const canShip = hasAllocated && customerOrders.every(o => {
+    if (o.allocatedQuantity === 0) return true;
+    return (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)) >= o.allocatedQuantity;
+  });
 
   const notificationText = useMemo(() => {
     const orderItemsText = customerOrders.map(o => {
@@ -139,7 +149,19 @@ ${notificationTemplate}`;
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">{customer.name} 的訂單明細</h3>
-            <p className="text-sm text-gray-500 mt-1">配單數代表已配到幾個，欠數代表還差幾個</p>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-sm text-gray-500">配單數代表已配到幾個，欠數代表還差幾個</span>
+              <div className="flex gap-2 ml-2">
+                <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full">總需求: <span className="font-bold">{totalRequested}</span></span>
+                <span className="text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">總配單: <span className="font-bold">{totalAllocated}</span></span>
+                <span className="text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-full">總到貨: <span className="font-bold">{totalArrived}</span></span>
+                {canShip && (
+                  <span className="text-sm bg-green-500 text-white px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    <Check size={14} /> 可出貨
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setIsAddOrderModalOpen(true)} className="btn-primary flex items-center gap-2">
@@ -162,7 +184,7 @@ ${notificationTemplate}`;
                   <th className="py-3 px-2 w-20">需求數</th>
                   <th className="py-3 px-2 w-20">配單數</th>
                   <th className="py-3 px-2 w-20 text-red-500">欠數</th>
-                  <th className="py-3 px-2 w-16 text-center">到貨</th>
+                  <th className="py-3 px-2 w-20 text-green-600">到貨</th>
                   <th className="py-3 px-2 w-24">單價</th>
                   <th className="py-3 px-2 w-28">總價</th>
                   <th className="py-3 px-2 w-24">建立日期</th>
@@ -220,12 +242,14 @@ ${notificationTemplate}`;
                           {owed}
                         </span>
                       </td>
-                      <td className="py-3 px-2 text-center">
+                      <td className="py-3 px-2">
                         <input 
-                          type="checkbox" 
-                          className="w-5 h-5 rounded border-gray-300 text-green-500 focus:ring-green-500 cursor-pointer"
-                          checked={!!order.isArrived}
-                          onChange={(e) => handleUpdateOrder(order.id, { isArrived: e.target.checked })}
+                          type="number" 
+                          className={`w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-bold ${
+                            (order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)) < order.allocatedQuantity ? 'text-orange-500' : 'text-green-600'
+                          }`}
+                          value={order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)}
+                          onChange={(e) => handleUpdateOrder(order.id, { arrivedQuantity: Math.max(0, Number(e.target.value) || 0) })}
                         />
                       </td>
                       <td className="py-3 px-2">
@@ -363,7 +387,7 @@ ${notificationTemplate}`;
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">已配貨數量</label>
+                  <label className="block text-sm font-medium mb-1">已買到數量</label>
                   <input 
                     type="number" 
                     min="0" 

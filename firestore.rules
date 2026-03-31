@@ -24,6 +24,7 @@
 //   - name: string (required, size < 100)
 //   - totalSpent: number (optional, >= 0)
 //   - status: string (optional, enum: ['active', 'inactive', 'blocked'])
+//   - isPaid: boolean (optional)
 //   - updatedAt: number (required, timestamp)
 //
 // Collection: /users/{userId}/orders/{orderId}
@@ -34,6 +35,7 @@
 //   - customerId: string (required)
 //   - requestedQuantity: number (optional, >= 0)
 //   - allocatedQuantity: number (optional, >= 0)
+//   - arrivedQuantity: number (optional, >= 0)
 //   - isUrgent: boolean (optional)
 //   - createdAt: number (required, timestamp)
 //   - note: string (optional, size < 1000)
@@ -124,22 +126,24 @@ service cloud.firestore {
 
     function isValidCustomer(data) {
       return hasRequiredFields(['id', 'name', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'name', 'totalSpent', 'status', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'name', 'totalSpent', 'status', 'isPaid', 'updatedAt']) &&
              isValidString('id', 1, 100) &&
              isValidString('name', 1, 100) &&
              isValidOptionalNumber('totalSpent', 0) &&
              isValidOptionalString('status', 0, 50) &&
+             isValidOptionalBoolean('isPaid') &&
              isValidNumber('updatedAt', 0);
     }
 
     function isValidOrder(data) {
       return hasRequiredFields(['id', 'productId', 'customerId', 'createdAt', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'isUrgent', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'arrivedQuantity', 'isUrgent', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
              isValidString('id', 1, 100) &&
              isValidString('productId', 1, 100) &&
              isValidString('customerId', 1, 100) &&
              isValidOptionalNumber('requestedQuantity', 0) &&
              isValidOptionalNumber('allocatedQuantity', 0) &&
+             isValidOptionalNumber('arrivedQuantity', 0) &&
              isValidOptionalBoolean('isUrgent') &&
              isValidNumber('createdAt', 0) &&
              isValidOptionalString('note', 0, 1000) &&

@@ -173,10 +173,10 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
                         </td>
                         <td className="py-3 print:py-6 text-center text-[var(--color-text)] align-middle text-sm print:text-2xl">{order.allocatedQuantity}</td>
                         <td className="py-3 print:py-6 text-right text-[var(--color-text)] opacity-80 align-middle text-sm print:text-2xl">
-                          ${unitPrice.toFixed(2)}
+                          ${unitPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                         <td className="py-3 print:py-6 text-right font-medium text-[var(--color-text)] align-middle text-sm print:text-2xl">
-                          ${order.recalculatedSubtotal.toFixed(2)}
+                          ${order.recalculatedSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                       </tr>
                     );
@@ -188,7 +188,7 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
               <div className="border-t-2 border-dashed border-[var(--color-border)] pt-4 print:pt-8">
                 <div className="flex justify-between items-center text-lg print:text-4xl font-bold text-[var(--color-text)]">
                   <span>總計</span>
-                  <span>${totalAmount.toFixed(2)}</span>
+                  <span>${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
                 <p className="text-center text-xs print:text-2xl opacity-60 mt-6 print:mt-12">
                   感謝您的購買！

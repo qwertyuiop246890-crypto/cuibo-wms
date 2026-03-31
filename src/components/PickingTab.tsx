@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Order, Product, Customer } from '../types';
-import { Package, Check, AlertCircle } from 'lucide-react';
+import { Package, Check, AlertCircle, Truck } from 'lucide-react';
 
 interface PickingTabProps {
   orders: Order[];
@@ -12,10 +12,11 @@ interface PickingTabProps {
 
 export default function PickingTab({ orders, setOrders, products, customers }: PickingTabProps) {
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [arrivalInputs, setArrivalInputs] = useState<Record<string, number>>({});
 
   // Group orders by product
   const pickingList = useMemo(() => {
-    const groups: Record<string, { product: Product; orders: Order[]; totalRequested: number; totalAllocated: number }> = {};
+    const groups: Record<string, { product: Product; orders: Order[]; totalRequested: number; totalAllocated: number; totalArrived: number }> = {};
     
     orders.forEach(order => {
       if (order.requestedQuantity === 0) return; // Skip empty orders
@@ -24,21 +25,91 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
       if (!product) return;
 
       if (!groups[product.id]) {
-        groups[product.id] = { product, orders: [], totalRequested: 0, totalAllocated: 0 };
+        groups[product.id] = { product, orders: [], totalRequested: 0, totalAllocated: 0, totalArrived: 0 };
       }
       
       groups[product.id].orders.push(order);
       groups[product.id].totalRequested += order.requestedQuantity;
       groups[product.id].totalAllocated += order.allocatedQuantity;
+      groups[product.id].totalArrived += (order.arrivedQuantity || 0);
     });
 
-    return Object.values(groups);
+    const result = Object.values(groups);
+    
+    // Sort orders within each group: by creation date (oldest first)
+    result.forEach(group => {
+      group.orders.sort((a, b) => {
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
+    });
+
+    // Sort product groups by the earliest order creation date
+    result.sort((a, b) => {
+      const earliestA = a.orders.length > 0 ? a.orders[0].createdAt || 0 : 0;
+      const earliestB = b.orders.length > 0 ? b.orders[0].createdAt || 0 : 0;
+      return earliestA - earliestB;
+    });
+
+    return result;
   }, [orders, products]);
 
   const handleAllocate = (orderId: string, allocatedQty: number) => {
     setOrders(prev => prev.map(o => 
       o.id === orderId ? { ...o, allocatedQuantity: allocatedQty, updatedAt: Date.now() } : o
     ));
+  };
+
+  const handleArrive = (orderId: string, arrivedQty: number) => {
+    setOrders(prev => prev.map(o => 
+      o.id === orderId ? { ...o, arrivedQuantity: arrivedQty, updatedAt: Date.now() } : o
+    ));
+  };
+
+  const handleAutoArriveProduct = (productId: string, totalArrived: number) => {
+    setOrders(prev => {
+      let newOrders = prev.map(o => {
+        if (o.productId === productId) {
+          return { ...o, arrivedQuantity: 0, updatedAt: Date.now() };
+        }
+        return o;
+      });
+      
+      let remainingArrived = totalArrived;
+      
+      const productOrders = newOrders
+        .filter(o => o.productId === productId && o.allocatedQuantity > 0)
+        .sort((a, b) => {
+          if (a.isUrgent && !b.isUrgent) return -1;
+          if (!a.isUrgent && b.isUrgent) return 1;
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+
+      for (const order of productOrders) {
+        const orderIndex = newOrders.findIndex(o => o.id === order.id);
+        if (orderIndex !== -1) {
+          const toArrive = Math.min(newOrders[orderIndex].allocatedQuantity, remainingArrived);
+          newOrders[orderIndex] = { ...newOrders[orderIndex], arrivedQuantity: toArrive, updatedAt: Date.now() };
+          remainingArrived -= toArrive;
+        }
+      }
+      return newOrders;
+    });
+    
+    // Clear the input after distribution
+    setArrivalInputs(prev => {
+      const newInputs = { ...prev };
+      delete newInputs[productId];
+      return newInputs;
+    });
+  };
+
+  const handleArriveAllAllocated = (productId?: string) => {
+    setOrders(prev => prev.map(o => {
+      if (!productId || o.productId === productId) {
+        return { ...o, arrivedQuantity: o.allocatedQuantity, updatedAt: Date.now() };
+      }
+      return o;
+    }));
   };
 
   const handleAutoAllocateProduct = (productId: string) => {
@@ -113,8 +184,8 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
     return (
       <div className="text-center py-12 bg-white rounded-xl border border-[var(--color-border)]">
         <Package className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-        <h3 className="text-lg font-medium text-gray-900">目前沒有需要配貨的商品</h3>
-        <p className="text-gray-500">當顧客有喊單數量時，這裡會顯示配貨清單。</p>
+        <h3 className="text-lg font-medium text-gray-900">目前沒有需要買到的商品</h3>
+        <p className="text-gray-500">當顧客有喊單數量時，這裡會顯示買到清單。</p>
       </div>
     );
   }
@@ -122,19 +193,19 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-        <h2 className="text-xl font-bold text-[var(--color-text)]">配貨與揀貨</h2>
+        <h2 className="text-xl font-bold text-[var(--color-text)]">買到與到貨管理</h2>
         <div className="flex gap-2 w-full sm:w-auto">
           <button 
             onClick={() => handleClearAllocations()}
             className="flex-1 sm:flex-none px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors"
           >
-            清除全部配貨
+            清除全部買到
           </button>
           <button 
             onClick={handleAutoAllocateAll}
             className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm"
           >
-            全部自動配貨
+            全部自動買到
           </button>
         </div>
       </div>
@@ -171,9 +242,15 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                   <span className="font-bold text-lg">{group.totalRequested}</span>
                 </div>
                 <div className="text-center px-3 py-1 bg-gray-50 rounded-lg">
-                  <span className="block text-xs text-gray-500">已配貨</span>
+                  <span className="block text-xs text-gray-500">已買到</span>
                   <span className={`font-bold text-lg ${group.totalAllocated < group.totalRequested ? 'text-orange-500' : 'text-green-600'}`}>
                     {group.totalAllocated}
+                  </span>
+                </div>
+                <div className="text-center px-3 py-1 bg-gray-50 rounded-lg">
+                  <span className="block text-xs text-gray-500">已到貨</span>
+                  <span className={`font-bold text-lg ${group.totalArrived < group.totalAllocated ? 'text-orange-500' : 'text-green-600'}`}>
+                    {group.totalArrived}
                   </span>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-3 sm:mt-0">
@@ -181,13 +258,13 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                     onClick={(e) => { e.stopPropagation(); handleClearAllocations(group.product.id); }}
                     className="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap"
                   >
-                    清除配貨
+                    清除買到
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleAutoAllocateProduct(group.product.id); }}
                     className="px-3 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:bg-opacity-90 transition-colors whitespace-nowrap"
                   >
-                    自動配貨
+                    自動買到
                   </button>
                 </div>
               </div>
@@ -196,6 +273,36 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
             {/* Orders List (Expanded) */}
             {isExpanded && (
               <div className="p-4 bg-gray-50">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                    <Truck size={16} />
+                    到貨管理 (僅分配給已買到的訂單)
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <input 
+                      type="number" 
+                      min="0"
+                      placeholder="輸入到貨數量"
+                      className="w-full sm:w-32 px-3 py-1.5 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={arrivalInputs[group.product.id] === undefined ? '' : arrivalInputs[group.product.id]}
+                      onChange={e => setArrivalInputs({...arrivalInputs, [group.product.id]: parseInt(e.target.value)})}
+                    />
+                    <button 
+                      onClick={() => handleAutoArriveProduct(group.product.id, arrivalInputs[group.product.id] || 0)}
+                      disabled={!arrivalInputs[group.product.id] && arrivalInputs[group.product.id] !== 0}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      分配到貨
+                    </button>
+                    <button 
+                      onClick={() => handleArriveAllAllocated(group.product.id)}
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+                    >
+                      全部已到貨
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   {group.orders.map(order => {
                     const customer = customers.find(c => c.id === order.customerId);
@@ -225,7 +332,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                             <span className="font-bold">{order.requestedQuantity}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500">配貨:</span>
+                            <span className="text-sm text-gray-500">買到:</span>
                             <input 
                               type="number" 
                               min="0"
@@ -233,6 +340,17 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                               value={order.allocatedQuantity}
                               onChange={(e) => handleAllocate(order.id, Math.max(0, parseInt(e.target.value) || 0))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">到貨:</span>
+                            <input 
+                              type="number" 
+                              min="0"
+                              max={order.allocatedQuantity}
+                              value={order.arrivedQuantity || 0}
+                              onChange={(e) => handleArrive(order.id, Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
                         </div>

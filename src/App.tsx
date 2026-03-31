@@ -203,6 +203,7 @@ export default function App() {
         id: customer.id,
         name: customer.name || '',
         totalSpent: Math.max(0, customer.totalSpent || 0),
+        isPaid: customer.isPaid || false,
         updatedAt: customer.updatedAt || Date.now(),
       };
       await setDoc(doc(db, path), sanitizedCustomer);
@@ -221,6 +222,7 @@ export default function App() {
         customerId: order.customerId,
         requestedQuantity: Math.max(1, order.requestedQuantity || 1),
         allocatedQuantity: Math.max(0, order.allocatedQuantity || 0),
+        arrivedQuantity: Math.max(0, order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)),
         subtotal: Math.max(0, order.subtotal || 0),
         note: order.note || '',
         isUrgent: order.isUrgent || false,
@@ -524,7 +526,7 @@ export default function App() {
         <div className="hidden md:flex max-w-6xl mx-auto px-4 gap-6 overflow-x-auto hide-scrollbar">
           <TabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={18} />} label="儀表板" />
           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={18} />} label="訂單" />
-          <TabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={18} />} label="配貨" />
+          <TabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={18} />} label="配貨/到貨" />
           <TabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={18} />} label="庫存" />
           <TabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={<Package size={18} />} label="商品" />
           <TabButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={18} />} label="顧客" />
@@ -594,7 +596,7 @@ export default function App() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] flex justify-around items-center py-2 px-1 z-50 no-print">
         <MobileTabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="儀表板" />
         <MobileTabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={20} />} label="訂單" />
-        <MobileTabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={20} />} label="配貨" />
+        <MobileTabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={20} />} label="配貨/到貨" />
         <MobileTabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="庫存" />
         <MobileTabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={<Package size={20} />} label="商品" />
         <MobileTabButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={20} />} label="顧客" />

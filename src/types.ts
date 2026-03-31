@@ -16,6 +16,7 @@ export interface Customer {
   id: string;
   name: string;
   totalSpent: number;
+  isPaid?: boolean;
   updatedAt: number;
 }
 
@@ -28,7 +29,8 @@ export interface Order {
   note: string;
   isUrgent: boolean;
   subtotal: number;
-  isArrived?: boolean;
+  isArrived?: boolean; // Deprecated, use arrivedQuantity
+  arrivedQuantity?: number;
   createdAt: number;
   updatedAt: number;
 }

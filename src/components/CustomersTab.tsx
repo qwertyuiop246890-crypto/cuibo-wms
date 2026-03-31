@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck, BadgeDollarSign } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { v4 as uuidv4 } from 'uuid';
 import { Customer, Order, Product } from '../types';
@@ -35,7 +35,11 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
     if (customerOrders.length === 0) return { allAllocated: false, allArrived: false };
 
     const allAllocated = customerOrders.every(o => o.allocatedQuantity >= o.requestedQuantity);
-    const allArrived = customerOrders.every(o => o.isArrived);
+    const hasAllocated = customerOrders.some(o => o.allocatedQuantity > 0);
+    const allArrived = hasAllocated && customerOrders.every(o => {
+      if (o.allocatedQuantity === 0) return true;
+      return (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)) >= o.allocatedQuantity;
+    });
 
     return { allAllocated, allArrived };
   };
@@ -126,13 +130,18 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
 
 ${orderItemsText}
 ----------------
-消費總額：${totalAmount.toFixed(0)}
+消費總額：${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
 
 ${notificationTemplate}`;
 
     navigator.clipboard.writeText(text).then(() => {
       showAlert('成功', '通知文案已複製到剪貼簿');
     });
+  };
+
+  const handleTogglePaid = (customer: Customer) => {
+    const updatedCustomer = { ...customer, isPaid: !customer.isPaid, updatedAt: Date.now() };
+    setCustomers(customers.map(c => c.id === customer.id ? updatedCustomer : c));
   };
 
   return (
@@ -163,7 +172,7 @@ ${notificationTemplate}`;
           >
             <option value="all">全部</option>
             <option value="allocated">全部已配單</option>
-            <option value="arrived">全部已到貨</option>
+            <option value="arrived">可出貨</option>
           </select>
         </div>
         <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
@@ -186,7 +195,7 @@ ${notificationTemplate}`;
           <div key={customer.id} className="card p-5 flex flex-col justify-between hover:border-blue-300 transition-colors group relative overflow-hidden">
             {allArrived && (
               <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
-                <PackageCheck size={12} /> 全部已到貨
+                <PackageCheck size={12} /> 可出貨
               </div>
             )}
             {!allArrived && allAllocated && (
@@ -202,11 +211,20 @@ ${notificationTemplate}`;
                 </h3>
               </div>
               <div className="space-y-1 text-sm opacity-80 mb-4">
-                <p>總消費額： <span className="font-bold">${customer.totalSpent.toFixed(0)}</span></p>
+                <p>總消費額： <span className="font-bold">${customer.totalSpent.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></p>
                 <p className="text-[10px] text-gray-400 mt-2">最後更新： {formatInTimeZone(new Date(customer.updatedAt), 'Asia/Taipei', 'yyyyMMddHHmm')}</p>
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-[var(--color-border)]">
+              <button 
+                onClick={() => handleTogglePaid(customer)} 
+                className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium ${customer.isPaid ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'}`} 
+                title={customer.isPaid ? "標記為未收款" : "標記為已收款"}
+              >
+                <BadgeDollarSign size={16} />
+                {customer.isPaid ? '已收款' : '未收款'}
+              </button>
+              <div className="flex-1"></div>
               <button onClick={() => handleCopyNotification(customer)} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors" title="複製通知文案">
                 <Copy size={16} />
               </button>

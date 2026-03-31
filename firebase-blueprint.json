@@ -28,6 +28,7 @@
         "name": { "type": "string" },
         "totalSpent": { "type": "number" },
         "status": { "type": "string" },
+        "isPaid": { "type": "boolean" },
         "updatedAt": { "type": "number" }
       },
       "required": ["id", "name", "updatedAt"]
@@ -42,6 +43,7 @@
         "customerId": { "type": "string" },
         "requestedQuantity": { "type": "number" },
         "allocatedQuantity": { "type": "number" },
+        "arrivedQuantity": { "type": "number" },
         "isUrgent": { "type": "boolean" },
         "createdAt": { "type": "number" },
         "note": { "type": "string" },

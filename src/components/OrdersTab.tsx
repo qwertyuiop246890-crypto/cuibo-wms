@@ -54,7 +54,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       const matchesDate = isWithinInterval(orderDate, { start, end });
 
       return matchesSearch && matchesDate;
-    });
+    }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [orders, products, customers, searchTerm, startDate, endDate]);
 
   const totalAmount = useMemo(() => {
@@ -146,6 +146,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       customerId: cId,
       requestedQuantity: qty,
       allocatedQuantity,
+      arrivedQuantity: editingOrder ? editingOrder.arrivedQuantity : 0,
       note,
       isUrgent,
       subtotal,
@@ -273,7 +274,8 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                 <th className="p-4 font-medium">商品</th>
                 <th className="p-4 font-medium">規格</th>
                 <th className="p-4 font-medium text-center">喊單數量</th>
-                <th className="p-4 font-medium text-center">配貨數量</th>
+                <th className="p-4 font-medium text-center">買到數量</th>
+                <th className="p-4 font-medium text-center">到貨數量</th>
                 <th className="p-4 font-medium text-right">小計</th>
                 <th className="p-4 font-medium">備註</th>
                 <th className="p-4 font-medium">建立日期</th>
@@ -314,8 +316,15 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                         {order.allocatedQuantity}
                       </span>
                     </td>
+                    <td className="p-4 text-center">
+                      <span className={`inline-flex items-center justify-center min-w-[2rem] h-8 rounded-md font-bold ${
+                        (order.arrivedQuantity ?? 0) >= order.allocatedQuantity && order.allocatedQuantity > 0 ? 'bg-green-500 text-white' : 'bg-[var(--color-bg)] text-[var(--color-text)] border border-[var(--color-border)]'
+                      }`}>
+                        {order.arrivedQuantity ?? 0}
+                      </span>
+                    </td>
                     <td className="p-4 text-right font-bold text-[var(--color-text)]">
-                      ${order.subtotal.toFixed(2)}
+                      ${order.subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </td>
                     <td className="p-4 text-sm opacity-80 max-w-[200px] truncate" title={order.note}>
                       {order.note || '-'}
@@ -388,14 +397,20 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                     <span className="font-bold text-lg">{order.requestedQuantity}</span>
                   </div>
                   <div className="text-center">
-                    <span className="block text-xs text-gray-500">配貨</span>
+                    <span className="block text-xs text-gray-500">買到</span>
                     <span className={`font-bold text-lg ${isFullyAllocated ? 'text-green-600' : 'text-orange-500'}`}>
                       {order.allocatedQuantity}
                     </span>
                   </div>
+                  <div className="text-center">
+                    <span className="block text-xs text-gray-500">到貨</span>
+                    <span className={`font-bold text-lg ${(order.arrivedQuantity ?? 0) >= order.allocatedQuantity && order.allocatedQuantity > 0 ? 'text-green-600' : 'text-orange-500'}`}>
+                      {order.arrivedQuantity ?? 0}
+                    </span>
+                  </div>
                   <div className="text-right">
                     <span className="block text-xs text-gray-500">小計</span>
-                    <span className="font-bold text-lg text-[var(--color-text)]">${order.subtotal.toFixed(2)}</span>
+                    <span className="font-bold text-lg text-[var(--color-text)]">${order.subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                   </div>
                 </div>
                 
@@ -506,7 +521,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                   className="w-4 h-4 text-[var(--color-primary)] rounded focus:ring-[var(--color-primary)]"
                 />
                 <label htmlFor="isUrgent" className="text-sm font-medium text-red-600 flex items-center gap-1">
-                  <AlertCircle size={14} /> 緊急訂單 (優先配貨)
+                  <AlertCircle size={14} /> 緊急訂單 (優先買到)
                 </label>
               </div>
             </div>
