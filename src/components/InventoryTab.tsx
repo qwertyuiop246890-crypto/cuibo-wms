@@ -67,15 +67,28 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {procurementList.map(item => (
-              <div key={item.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex justify-between items-center">
-                <div>
-                  <p className="font-bold text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.variant || '預設'}</p>
+              <div key={item.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-bold text-gray-900">{item.name}</p>
+                    <p className="text-xs text-gray-500">{item.variant || '預設'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-orange-600 font-bold uppercase">需採購</p>
+                    <p className="text-2xl font-black text-orange-600">{item.needsPurchase}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-orange-600 font-bold uppercase">需採購</p>
-                  <p className="text-2xl font-black text-orange-600">{item.needsPurchase}</p>
-                </div>
+                <button 
+                  onClick={() => {
+                    setSelectedProduct(item);
+                    setNewPurchaseQty(item.needsPurchase);
+                    setNewLossQty(0);
+                    setIsModalOpen(true);
+                  }}
+                  className="w-full py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-bold text-sm flex justify-center items-center gap-1"
+                >
+                  <Package size={16} /> 登記已採購
+                </button>
               </div>
             ))}
           </div>
