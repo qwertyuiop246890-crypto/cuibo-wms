@@ -15,6 +15,7 @@ import { useDialog } from './hooks/useDialog';
 import CustomDialog from './components/CustomDialog';
 import { auth, db, googleProvider, signInWithPopup, onAuthStateChanged, User, handleFirestoreError, OperationType, signInWithRedirect, getRedirectResult } from './firebase';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query, orderBy, getDocs } from 'firebase/firestore';
+import { calculateSubtotal } from './lib/priceUtils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'inventory' | 'customers' | 'orders' | 'receipts' | 'settings' | 'picking'>('dashboard');
@@ -336,15 +337,32 @@ export default function App() {
     });
   }, [saveSettings]);
 
+  // Auto-calculate order subtotals when products change
+  useEffect(() => {
+    let changed = false;
+    const newOrders = orders.map(o => {
+      const product = products.find(p => p.id === o.productId);
+      if (product) {
+        const newSubtotal = calculateSubtotal(product, o.requestedQuantity);
+        if (o.subtotal !== newSubtotal) {
+          changed = true;
+          return { ...o, subtotal: newSubtotal, updatedAt: Date.now() };
+        }
+      }
+      return o;
+    });
+
+    if (changed) {
+      setOrdersWithSync(newOrders);
+    }
+  }, [products, orders, setOrdersWithSync]);
+
   // Auto-calculate customer totalSpent based on orders
   useEffect(() => {
     let changed = false;
     const newCustomers = customers.map(c => {
       const customerOrders = orders.filter(o => o.customerId === c.id);
-      const total = customerOrders.reduce((sum, o) => {
-        const product = products.find(p => p.id === o.productId);
-        return sum + (o.requestedQuantity * (product?.price || 0));
-      }, 0);
+      const total = customerOrders.reduce((sum, o) => sum + o.subtotal, 0);
       
       if (c.totalSpent !== total) {
         changed = true;
