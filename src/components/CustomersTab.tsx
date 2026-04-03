@@ -111,8 +111,9 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
   };
 
   const handleDelete = (id: string) => {
-    showConfirm("確認刪除", "確定要刪除此顧客嗎？", () => {
+    showConfirm("確認刪除", "確定要刪除此顧客嗎？連同該顧客的所有訂單也會一併刪除！", () => {
       setCustomers(customers.filter(c => c.id !== id));
+      setOrders(orders.filter(o => o.customerId !== id));
     });
   };
 

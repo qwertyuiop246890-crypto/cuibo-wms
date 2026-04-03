@@ -208,6 +208,18 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
     });
   };
 
+  const handleCleanUnknownOrders = () => {
+    const unknownOrders = orders.filter(o => !customers.some(c => c.id === o.customerId));
+    if (unknownOrders.length === 0) {
+      showAlert("提示", "目前沒有未知的訂單。");
+      return;
+    }
+    showConfirm("確認清理", `確定要刪除 ${unknownOrders.length} 筆未知顧客的訂單嗎？`, () => {
+      setOrders(orders.filter(o => customers.some(c => c.id === o.customerId)));
+      showAlert("成功", "已成功清理未知訂單。");
+    });
+  };
+
   // Get unique product names for datalist
   const uniqueProductNames = Array.from(new Set(products.map(p => p.name)));
   // Get variants for the currently typed product name
@@ -217,12 +229,20 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">訂單管理</h2>
-        <button 
-          onClick={() => handleOpenModal()} 
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={18} /> 新增訂單
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleCleanUnknownOrders} 
+            className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-bold text-sm flex items-center gap-2"
+          >
+            <Trash2 size={18} /> 清理未知訂單
+          </button>
+          <button 
+            onClick={() => handleOpenModal()} 
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={18} /> 新增訂單
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
