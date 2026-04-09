@@ -223,6 +223,7 @@ export default function App() {
         requestedQuantity: Math.max(1, order.requestedQuantity || 1),
         allocatedQuantity: Math.max(0, order.allocatedQuantity || 0),
         arrivedQuantity: Math.max(0, order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)),
+        isShipped: order.isShipped || false,
         subtotal: Math.max(0, order.subtotal || 0),
         note: order.note || '',
         isUrgent: order.isUrgent || false,
@@ -578,6 +579,7 @@ export default function App() {
         {activeTab === 'receipts' && (
           <ReceiptsTab 
             orders={orders} 
+            setOrders={setOrdersWithSync}
             products={products} 
             customers={customers} 
           />

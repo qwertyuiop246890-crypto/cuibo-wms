@@ -19,7 +19,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
     const groups: Record<string, { product: Product; orders: Order[]; totalRequested: number; totalAllocated: number; totalArrived: number }> = {};
     
     orders.forEach(order => {
-      if (order.requestedQuantity === 0) return; // Skip empty orders
+      if (order.requestedQuantity === 0 || order.isShipped) return; // Skip empty or shipped orders
       
       const product = products.find(p => p.id === order.productId);
       if (!product) return;

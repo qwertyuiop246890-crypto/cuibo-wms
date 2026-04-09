@@ -31,6 +31,7 @@ export interface Order {
   subtotal: number;
   isArrived?: boolean; // Deprecated, use arrivedQuantity
   arrivedQuantity?: number;
+  isShipped?: boolean; // New field: "Shipped status"
   createdAt: number;
   updatedAt: number;
 }

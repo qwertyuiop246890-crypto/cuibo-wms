@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Printer, Download, Search } from 'lucide-react';
+import { Printer, Download, Search, CheckCircle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Order, Product, Customer } from '../types';
@@ -8,17 +8,19 @@ import { calculateSubtotal } from '../lib/priceUtils';
 
 interface Props {
   orders: Order[];
+  setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   products: Product[];
   customers: Customer[];
 }
 
-export default function ReceiptsTab({ orders, products, customers }: Props) {
-  const { showAlert } = useDialog();
+export default function ReceiptsTab({ orders, setOrders, products, customers }: Props) {
+  const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
   const receiptRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // Group orders by customer
+  // Group orders by customer (only unshipped orders)
   const ordersByCustomer = orders.reduce((acc, order) => {
+    if (order.isShipped) return acc;
     if (!acc[order.customerId]) {
       acc[order.customerId] = [];
     }
@@ -56,6 +58,15 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
       console.error("Failed to export image", error);
       showAlert("錯誤", "圖片產生失敗，請再試一次。");
     }
+  };
+
+  const handleMarkAsShipped = (customerId: string, customerName: string) => {
+    showConfirm("確認出貨", `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`, () => {
+      setOrders(prev => prev.map(o => 
+        o.customerId === customerId && !o.isShipped ? { ...o, isShipped: true, updatedAt: Date.now() } : o
+      ));
+      showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
+    });
   };
 
   return (
@@ -107,14 +118,23 @@ export default function ReceiptsTab({ orders, products, customers }: Props) {
               className="receipt-item card p-6 mb-6 relative bg-white"
               ref={el => receiptRefs.current[customer.id] = el}
             >
-              {/* Export Button (Hidden in print) */}
-              <button 
-                onClick={() => handleExportImage(customer.id, customer.name)}
-                className="absolute top-4 right-4 p-2 text-[var(--color-text)] opacity-50 hover:opacity-100 hover:bg-[var(--color-bg)] rounded-full transition-colors no-print"
-                title="匯出為圖片"
-              >
-                <Download size={18} />
-              </button>
+              <div className="absolute top-4 right-4 flex gap-2 no-print">
+                <button 
+                  onClick={() => handleMarkAsShipped(customer.id, customer.name)}
+                  className="p-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-colors flex items-center gap-1 text-sm font-bold"
+                  title="標記為已出貨"
+                >
+                  <CheckCircle size={18} />
+                  <span className="hidden sm:inline">已出貨</span>
+                </button>
+                <button 
+                  onClick={() => handleExportImage(customer.id, customer.name)}
+                  className="p-2 text-[var(--color-text)] opacity-50 hover:opacity-100 hover:bg-[var(--color-bg)] rounded-full transition-colors"
+                  title="匯出為圖片"
+                >
+                  <Download size={18} />
+                </button>
+              </div>
 
               {/* Receipt Header */}
               <div className="text-center mb-6 border-b-2 border-dashed border-[var(--color-border)] pb-4">

@@ -44,6 +44,7 @@
         "requestedQuantity": { "type": "number" },
         "allocatedQuantity": { "type": "number" },
         "arrivedQuantity": { "type": "number" },
+        "isShipped": { "type": "boolean" },
         "isUrgent": { "type": "boolean" },
         "createdAt": { "type": "number" },
         "note": { "type": "string" },

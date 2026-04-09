@@ -137,13 +137,14 @@ service cloud.firestore {
 
     function isValidOrder(data) {
       return hasRequiredFields(['id', 'productId', 'customerId', 'createdAt', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'arrivedQuantity', 'isUrgent', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'arrivedQuantity', 'isShipped', 'isUrgent', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
              isValidString('id', 1, 100) &&
              isValidString('productId', 1, 100) &&
              isValidString('customerId', 1, 100) &&
              isValidOptionalNumber('requestedQuantity', 0) &&
              isValidOptionalNumber('allocatedQuantity', 0) &&
              isValidOptionalNumber('arrivedQuantity', 0) &&
+             isValidOptionalBoolean('isShipped') &&
              isValidOptionalBoolean('isUrgent') &&
              isValidNumber('createdAt', 0) &&
              isValidOptionalString('note', 0, 1000) &&

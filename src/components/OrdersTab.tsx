@@ -23,6 +23,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   const [endDate, setEndDate] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [showShipped, setShowShipped] = useState(false);
 
   // Form state
   const [customerName, setCustomerName] = useState('');
@@ -52,10 +53,11 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       const start = startDate ? startOfDay(parseISO(startDate)) : new Date(0);
       const end = endDate ? endOfDay(parseISO(endDate)) : new Date(8640000000000000);
       const matchesDate = isWithinInterval(orderDate, { start, end });
+      const matchesShipped = showShipped ? true : !o.isShipped;
 
-      return matchesSearch && matchesDate;
+      return matchesSearch && matchesDate && matchesShipped;
     }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  }, [orders, products, customers, searchTerm, startDate, endDate]);
+  }, [orders, products, customers, searchTerm, startDate, endDate, showShipped]);
 
   const totalAmount = useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.subtotal, 0);
@@ -147,6 +149,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       requestedQuantity: qty,
       allocatedQuantity,
       arrivedQuantity: editingOrder ? editingOrder.arrivedQuantity : 0,
+      isShipped: editingOrder ? editingOrder.isShipped : false,
       note,
       isUrgent,
       subtotal,
@@ -278,6 +281,17 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
             </button>
           )}
         </div>
+        <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)] px-2">
+            <input 
+              type="checkbox" 
+              checked={showShipped} 
+              onChange={(e) => setShowShipped(e.target.checked)}
+              className="rounded text-blue-600 focus:ring-blue-500"
+            />
+            顯示已出貨
+          </label>
+        </div>
         <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-[var(--color-border)]">
           <DollarSign size={18} className="text-[var(--color-primary)]" />
           <span className="font-bold text-[var(--color-text)]">總計: ${totalAmount.toLocaleString()}</span>
@@ -322,6 +336,9 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                         <div className="font-medium text-[var(--color-text)]">{product?.name || '未知'}</div>
                         {order.isUrgent && (
                           <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded uppercase">緊急</span>
+                        )}
+                        {order.isShipped && (
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-600 text-[10px] font-bold rounded uppercase">已出貨</span>
                         )}
                       </div>
                     </td>
@@ -395,6 +412,9 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                       <h3 className="font-bold text-lg text-[var(--color-text)]">{customer?.name || '未知'}</h3>
                       {order.isUrgent && (
                         <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded uppercase">緊急</span>
+                      )}
+                      {order.isShipped && (
+                        <span className="px-1.5 py-0.5 bg-green-100 text-green-600 text-[10px] font-bold rounded uppercase">已出貨</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-700 font-medium">{product?.name}</p>

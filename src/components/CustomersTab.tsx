@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck, BadgeDollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck, BadgeDollarSign, Truck } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { v4 as uuidv4 } from 'uuid';
 import { Customer, Order, Product } from '../types';
@@ -145,6 +145,15 @@ ${notificationTemplate}`;
     setCustomers(customers.map(c => c.id === customer.id ? updatedCustomer : c));
   };
 
+  const handleMarkAsShipped = (customerId: string, customerName: string) => {
+    showConfirm("確認出貨", `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`, () => {
+      setOrders(prev => prev.map(o => 
+        o.customerId === customerId && !o.isShipped ? { ...o, isShipped: true, updatedAt: Date.now() } : o
+      ));
+      showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -217,6 +226,14 @@ ${notificationTemplate}`;
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-[var(--color-border)]">
+              <button 
+                onClick={() => handleMarkAsShipped(customer.id, customer.name)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors flex items-center gap-1 text-sm font-medium"
+                title="標記為已出貨"
+              >
+                <Truck size={16} />
+                <span className="hidden sm:inline">出貨</span>
+              </button>
               <button 
                 onClick={() => handleTogglePaid(customer)} 
                 className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium ${customer.isPaid ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'}`} 
