@@ -148,7 +148,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       customerId: cId,
       requestedQuantity: qty,
       allocatedQuantity,
-      arrivedQuantity: editingOrder ? editingOrder.arrivedQuantity : 0,
+      arrivedQuantity: editingOrder ? (editingOrder.arrivedQuantity ?? 0) : 0,
       isShipped: editingOrder ? editingOrder.isShipped : false,
       note,
       isUrgent,
@@ -355,7 +355,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                     </td>
                     <td className="p-4 text-center">
                       <span className={`inline-flex items-center justify-center min-w-[2rem] h-8 rounded-md font-bold ${
-                        (order.arrivedQuantity ?? 0) >= order.allocatedQuantity && order.allocatedQuantity > 0 ? 'bg-green-500 text-white' : 'bg-[var(--color-bg)] text-[var(--color-text)] border border-[var(--color-border)]'
+                        (order.arrivedQuantity ?? 0) >= order.requestedQuantity && order.requestedQuantity > 0 ? 'bg-green-500 text-white' : 'bg-[var(--color-bg)] text-[var(--color-text)] border border-[var(--color-border)]'
                       }`}>
                         {order.arrivedQuantity ?? 0}
                       </span>
@@ -444,7 +444,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                   </div>
                   <div className="text-center">
                     <span className="block text-xs text-gray-500">到貨</span>
-                    <span className={`font-bold text-lg ${(order.arrivedQuantity ?? 0) >= order.allocatedQuantity && order.allocatedQuantity > 0 ? 'text-green-600' : 'text-orange-500'}`}>
+                    <span className={`font-bold text-lg ${(order.arrivedQuantity ?? 0) >= order.requestedQuantity && order.requestedQuantity > 0 ? 'text-green-600' : 'text-orange-500'}`}>
                       {order.arrivedQuantity ?? 0}
                     </span>
                   </div>

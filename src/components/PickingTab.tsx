@@ -77,7 +77,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
       let remainingArrived = totalArrived;
       
       const productOrders = newOrders
-        .filter(o => o.productId === productId && o.allocatedQuantity > 0)
+        .filter(o => o.productId === productId && o.requestedQuantity > 0)
         .sort((a, b) => {
           if (a.isUrgent && !b.isUrgent) return -1;
           if (!a.isUrgent && b.isUrgent) return 1;
@@ -87,7 +87,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
       for (const order of productOrders) {
         const orderIndex = newOrders.findIndex(o => o.id === order.id);
         if (orderIndex !== -1) {
-          const toArrive = Math.min(newOrders[orderIndex].allocatedQuantity, remainingArrived);
+          const toArrive = Math.min(newOrders[orderIndex].requestedQuantity, remainingArrived);
           newOrders[orderIndex] = { ...newOrders[orderIndex], arrivedQuantity: toArrive, updatedAt: Date.now() };
           remainingArrived -= toArrive;
         }
@@ -103,10 +103,10 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
     });
   };
 
-  const handleArriveAllAllocated = (productId?: string) => {
+  const handleArriveAllRequested = (productId?: string) => {
     setOrders(prev => prev.map(o => {
       if (!productId || o.productId === productId) {
-        return { ...o, arrivedQuantity: o.allocatedQuantity, updatedAt: Date.now() };
+        return { ...o, arrivedQuantity: o.requestedQuantity, updatedAt: Date.now() };
       }
       return o;
     }));
@@ -295,7 +295,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                       分配到貨
                     </button>
                     <button 
-                      onClick={() => handleArriveAllAllocated(group.product.id)}
+                      onClick={() => handleArriveAllRequested(group.product.id)}
                       className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
                     >
                       全部已到貨
@@ -347,7 +347,7 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
                             <input 
                               type="number" 
                               min="0"
-                              max={order.allocatedQuantity}
+                              max={order.requestedQuantity}
                               value={order.arrivedQuantity || 0}
                               onChange={(e) => handleArrive(order.id, Math.max(0, parseInt(e.target.value) || 0))}
                               className="w-16 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500"

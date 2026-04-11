@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Copy, Check, Save, Trash2, Plus } from 'lucide-react';
+import { X, Copy, Check, Save, Trash2, Plus, Edit2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Customer, Order, Product } from '../types';
@@ -14,11 +14,28 @@ interface Props {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   notificationTemplate: string;
   onClose: () => void;
+  onUpdateCustomerName?: (newName: string) => void;
 }
 
-export default function CustomerDetailModal({ customer, orders, setOrders, products, setProducts, notificationTemplate, onClose }: Props) {
+export default function CustomerDetailModal({ customer, orders, setOrders, products, setProducts, notificationTemplate, onClose, onUpdateCustomerName }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [copied, setCopied] = useState(false);
+  
+  // Edit Name State
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(customer.name);
+
+  const handleSaveName = () => {
+    const sanitizedName = editedName.replace(/\s+/g, '');
+    if (!sanitizedName) {
+      showAlert("提示", "請輸入顧客姓名");
+      return;
+    }
+    if (onUpdateCustomerName) {
+      onUpdateCustomerName(sanitizedName);
+    }
+    setIsEditingName(false);
+  };
   
   // Add Order Modal State
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
@@ -111,13 +128,10 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   const totalAmount = customerOrders.reduce((sum, o) => sum + o.subtotal, 0);
   const totalRequested = customerOrders.reduce((sum, o) => sum + o.requestedQuantity, 0);
   const totalAllocated = customerOrders.reduce((sum, o) => sum + o.allocatedQuantity, 0);
-  const totalArrived = customerOrders.reduce((sum, o) => sum + (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)), 0);
+  const totalArrived = customerOrders.reduce((sum, o) => sum + (o.arrivedQuantity ?? 0), 0);
   
-  const hasAllocated = customerOrders.some(o => o.allocatedQuantity > 0);
-  const canShip = hasAllocated && customerOrders.every(o => {
-    if (o.allocatedQuantity === 0) return true;
-    return (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)) >= o.allocatedQuantity;
-  });
+  const canShip = customerOrders.length > 0 && customerOrders.every(o => (o.arrivedQuantity ?? 0) >= o.requestedQuantity);
+  const isAllShipped = customerOrders.length > 0 && customerOrders.every(o => o.isShipped);
 
   const notificationText = useMemo(() => {
     const orderItemsText = customerOrders.map(o => {
@@ -148,14 +162,37 @@ ${notificationTemplate}`;
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <div>
-            <h3 className="text-2xl font-bold text-gray-900">{customer.name} 的訂單明細</h3>
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={e => setEditedName(e.target.value)}
+                  className="input-field py-1 px-2 text-xl font-bold w-48"
+                  autoFocus
+                />
+                <button onClick={handleSaveName} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                  <Save size={20} />
+                </button>
+                <button onClick={() => { setIsEditingName(false); setEditedName(customer.name); }} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h3 className="text-2xl font-bold text-gray-900">{customer.name} 的訂單明細</h3>
+                <button onClick={() => setIsEditingName(true)} className="p-1.5 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-lg transition-all" title="編輯顧客名稱">
+                  <Edit2 size={16} />
+                </button>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="text-sm text-gray-500">配單數代表已配到幾個，欠數代表還差幾個</span>
               <div className="flex gap-2 ml-2">
                 <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full">總需求: <span className="font-bold">{totalRequested}</span></span>
                 <span className="text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">總配單: <span className="font-bold">{totalAllocated}</span></span>
                 <span className="text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-full">總到貨: <span className="font-bold">{totalArrived}</span></span>
-                {canShip && (
+                {canShip && !isAllShipped && (
                   <span className="text-sm bg-green-500 text-white px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                     <Check size={14} /> 可出貨
                   </span>
@@ -246,9 +283,9 @@ ${notificationTemplate}`;
                         <input 
                           type="number" 
                           className={`w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-bold ${
-                            (order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)) < order.allocatedQuantity ? 'text-orange-500' : 'text-green-600'
+                            (order.arrivedQuantity ?? 0) < order.allocatedQuantity ? 'text-orange-500' : 'text-green-600'
                           }`}
-                          value={order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)}
+                          value={order.arrivedQuantity ?? 0}
                           onChange={(e) => handleUpdateOrder(order.id, { arrivedQuantity: Math.max(0, Number(e.target.value) || 0) })}
                         />
                       </td>

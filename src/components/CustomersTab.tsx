@@ -35,11 +35,7 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
     if (customerOrders.length === 0) return { allAllocated: false, allArrived: false, isAllShipped: false };
 
     const allAllocated = customerOrders.every(o => o.allocatedQuantity >= o.requestedQuantity);
-    const hasAllocated = customerOrders.some(o => o.allocatedQuantity > 0);
-    const allArrived = hasAllocated && customerOrders.every(o => {
-      if (o.allocatedQuantity === 0) return true;
-      return (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)) >= o.allocatedQuantity;
-    });
+    const allArrived = customerOrders.every(o => (o.arrivedQuantity ?? 0) >= o.requestedQuantity);
     const isAllShipped = customerOrders.every(o => o.isShipped);
 
     return { allAllocated, allArrived, isAllShipped };
@@ -226,12 +222,12 @@ ${notificationTemplate}`;
           const { allAllocated, allArrived, isAllShipped } = getCustomerStatus(customer.id);
           return (
           <div key={customer.id} className="card p-5 flex flex-col justify-between hover:border-blue-300 transition-colors group relative overflow-hidden">
-            {allArrived && (
+            {allArrived && !isAllShipped && (
               <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
                 <PackageCheck size={12} /> 可出貨
               </div>
             )}
-            {!allArrived && allAllocated && (
+            {!allArrived && allAllocated && !isAllShipped && (
               <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
                 <CheckCircle size={12} /> 全部已配單
               </div>
@@ -319,6 +315,11 @@ ${notificationTemplate}`;
           setProducts={setProducts}
           notificationTemplate={notificationTemplate}
           onClose={() => setIsDetailOpen(false)}
+          onUpdateCustomerName={(newName) => {
+            const updatedCustomer = { ...selectedCustomer, name: newName, updatedAt: Date.now() };
+            setCustomers(customers.map(c => c.id === selectedCustomer.id ? updatedCustomer : c));
+            setSelectedCustomer(updatedCustomer);
+          }}
         />
       )}
     </div>

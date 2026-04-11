@@ -145,7 +145,13 @@ export default function App() {
     const ordersUnsubscribe = onSnapshot(
       collection(userRef, 'orders'),
       (snapshot) => {
-        const data = snapshot.docs.map(doc => doc.data() as Order);
+        const data = snapshot.docs.map(doc => {
+          const o = doc.data() as Order;
+          if (o.arrivedQuantity === undefined) {
+            o.arrivedQuantity = o.isArrived ? o.allocatedQuantity : 0;
+          }
+          return o;
+        });
         setOrders(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
       },
       (error) => handleFirestoreError(error, OperationType.GET, `users/${user.uid}/orders`)
@@ -222,7 +228,7 @@ export default function App() {
         customerId: order.customerId,
         requestedQuantity: Math.max(1, order.requestedQuantity || 1),
         allocatedQuantity: Math.max(0, order.allocatedQuantity || 0),
-        arrivedQuantity: Math.max(0, order.arrivedQuantity ?? (order.isArrived ? order.allocatedQuantity : 0)),
+        arrivedQuantity: Math.max(0, order.arrivedQuantity ?? 0),
         isShipped: order.isShipped || false,
         subtotal: Math.max(0, order.subtotal || 0),
         note: order.note || '',
