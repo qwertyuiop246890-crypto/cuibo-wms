@@ -32,7 +32,7 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
 
   const getCustomerStatus = (customerId: string) => {
     const customerOrders = orders.filter(o => o.customerId === customerId);
-    if (customerOrders.length === 0) return { allAllocated: false, allArrived: false };
+    if (customerOrders.length === 0) return { allAllocated: false, allArrived: false, isAllShipped: false };
 
     const allAllocated = customerOrders.every(o => o.allocatedQuantity >= o.requestedQuantity);
     const hasAllocated = customerOrders.some(o => o.allocatedQuantity > 0);
@@ -40,8 +40,9 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
       if (o.allocatedQuantity === 0) return true;
       return (o.arrivedQuantity ?? (o.isArrived ? o.allocatedQuantity : 0)) >= o.allocatedQuantity;
     });
+    const isAllShipped = customerOrders.every(o => o.isShipped);
 
-    return { allAllocated, allArrived };
+    return { allAllocated, allArrived, isAllShipped };
   };
 
   const filteredCustomers = useMemo(() => {
@@ -145,13 +146,35 @@ ${notificationTemplate}`;
     setCustomers(customers.map(c => c.id === customer.id ? updatedCustomer : c));
   };
 
-  const handleMarkAsShipped = (customerId: string, customerName: string) => {
-    showConfirm("確認出貨", `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`, () => {
-      setOrders(prev => prev.map(o => 
-        o.customerId === customerId && !o.isShipped ? { ...o, isShipped: true, updatedAt: Date.now() } : o
-      ));
-      showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
-    });
+  const handleToggleShipped = (customerId: string, customerName: string) => {
+    const customerOrders = orders.filter(o => o.customerId === customerId);
+    if (customerOrders.length === 0) return;
+
+    const isAllShipped = customerOrders.every(o => o.isShipped);
+
+    if (isAllShipped) {
+      showConfirm("取消出貨", `確定要取消 ${customerName} 的出貨狀態嗎？`, () => {
+        setOrders(prev => prev.map(o => 
+          o.customerId === customerId ? { ...o, isShipped: false, updatedAt: Date.now() } : o
+        ));
+        showAlert("成功", `已取消 ${customerName} 的出貨狀態`);
+      });
+    } else {
+      const hasIncompleteOrders = customerOrders.some(o => 
+        o.requestedQuantity > o.allocatedQuantity || o.requestedQuantity > (o.arrivedQuantity || 0)
+      );
+
+      const confirmMessage = hasIncompleteOrders 
+        ? `⚠️ 注意：${customerName} 還有部分商品尚未完全配單或到貨！\n\n確定要強制將所有訂單標記為已出貨嗎？`
+        : `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`;
+
+      showConfirm("確認出貨", confirmMessage, () => {
+        setOrders(prev => prev.map(o => 
+          o.customerId === customerId ? { ...o, isShipped: true, updatedAt: Date.now() } : o
+        ));
+        showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
+      });
+    }
   };
 
   return (
@@ -200,7 +223,7 @@ ${notificationTemplate}`;
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredCustomers.map(customer => {
-          const { allAllocated, allArrived } = getCustomerStatus(customer.id);
+          const { allAllocated, allArrived, isAllShipped } = getCustomerStatus(customer.id);
           return (
           <div key={customer.id} className="card p-5 flex flex-col justify-between hover:border-blue-300 transition-colors group relative overflow-hidden">
             {allArrived && (
@@ -227,12 +250,12 @@ ${notificationTemplate}`;
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-[var(--color-border)]">
               <button 
-                onClick={() => handleMarkAsShipped(customer.id, customer.name)}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors flex items-center gap-1 text-sm font-medium"
-                title="標記為已出貨"
+                onClick={() => handleToggleShipped(customer.id, customer.name)}
+                className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium ${isAllShipped ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-blue-600 hover:bg-blue-50'}`}
+                title={isAllShipped ? "取消出貨" : "標記為已出貨"}
               >
-                <Truck size={16} />
-                <span className="hidden sm:inline">出貨</span>
+                {isAllShipped ? <PackageCheck size={16} /> : <Truck size={16} />}
+                <span className="hidden sm:inline">{isAllShipped ? '已出貨' : '出貨'}</span>
               </button>
               <button 
                 onClick={() => handleTogglePaid(customer)} 

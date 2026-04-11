@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Printer, Download, Search, CheckCircle } from 'lucide-react';
+import { Printer, Download, Search, CheckCircle, Truck, PackageCheck } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Order, Product, Customer } from '../types';
@@ -16,11 +16,12 @@ interface Props {
 export default function ReceiptsTab({ orders, setOrders, products, customers }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
+  const [showShipped, setShowShipped] = useState(false);
   const receiptRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // Group orders by customer (only unshipped orders)
+  // Group orders by customer
   const ordersByCustomer = orders.reduce((acc, order) => {
-    if (order.isShipped) return acc;
+    if (!showShipped && order.isShipped) return acc;
     if (!acc[order.customerId]) {
       acc[order.customerId] = [];
     }
@@ -60,22 +61,55 @@ export default function ReceiptsTab({ orders, setOrders, products, customers }: 
     }
   };
 
-  const handleMarkAsShipped = (customerId: string, customerName: string) => {
-    showConfirm("確認出貨", `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`, () => {
-      setOrders(prev => prev.map(o => 
-        o.customerId === customerId && !o.isShipped ? { ...o, isShipped: true, updatedAt: Date.now() } : o
-      ));
-      showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
-    });
+  const handleToggleShipped = (customerId: string, customerName: string) => {
+    const customerOrders = orders.filter(o => o.customerId === customerId);
+    if (customerOrders.length === 0) return;
+
+    const isAllShipped = customerOrders.every(o => o.isShipped);
+
+    if (isAllShipped) {
+      showConfirm("取消出貨", `確定要取消 ${customerName} 的出貨狀態嗎？`, () => {
+        setOrders(prev => prev.map(o => 
+          o.customerId === customerId ? { ...o, isShipped: false, updatedAt: Date.now() } : o
+        ));
+        showAlert("成功", `已取消 ${customerName} 的出貨狀態`);
+      });
+    } else {
+      const hasIncompleteOrders = customerOrders.some(o => 
+        o.requestedQuantity > o.allocatedQuantity || o.requestedQuantity > (o.arrivedQuantity || 0)
+      );
+
+      const confirmMessage = hasIncompleteOrders 
+        ? `⚠️ 注意：${customerName} 還有部分商品尚未完全配單或到貨！\n\n確定要強制將所有訂單標記為已出貨嗎？`
+        : `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`;
+
+      showConfirm("確認出貨", confirmMessage, () => {
+        setOrders(prev => prev.map(o => 
+          o.customerId === customerId ? { ...o, isShipped: true, updatedAt: Date.now() } : o
+        ));
+        showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
+      });
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center no-print">
         <h2 className="text-2xl font-bold">收據與列印</h2>
-        <button onClick={handlePrint} className="btn-primary flex items-center gap-2">
-          <Printer size={18} /> 列印全部 (A4)
-        </button>
+        <div className="flex gap-2">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)] px-2 bg-white rounded-xl shadow-sm border border-[var(--color-border)]">
+            <input 
+              type="checkbox" 
+              checked={showShipped} 
+              onChange={(e) => setShowShipped(e.target.checked)}
+              className="rounded text-blue-600 focus:ring-blue-500"
+            />
+            顯示已出貨
+          </label>
+          <button onClick={handlePrint} className="btn-primary flex items-center gap-2">
+            <Printer size={18} /> 列印全部 (A4)
+          </button>
+        </div>
       </div>
 
       <div className="relative no-print">
@@ -98,6 +132,8 @@ export default function ReceiptsTab({ orders, setOrders, products, customers }: 
       <div className="receipt-container">
         {filteredCustomers.map(customer => {
           const customerOrders = ordersByCustomer[customer.id] || [];
+          const allCustomerOrders = orders.filter(o => o.customerId === customer.id);
+          const isAllShipped = allCustomerOrders.length > 0 && allCustomerOrders.every(o => o.isShipped);
           
           // Calculate subtotals for each order based on allocated quantity and product discount
           const ordersWithRecalculatedSubtotal = customerOrders.map(order => {
@@ -120,12 +156,12 @@ export default function ReceiptsTab({ orders, setOrders, products, customers }: 
             >
               <div className="absolute top-4 right-4 flex gap-2 no-print">
                 <button 
-                  onClick={() => handleMarkAsShipped(customer.id, customer.name)}
-                  className="p-2 text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-colors flex items-center gap-1 text-sm font-bold"
-                  title="標記為已出貨"
+                  onClick={() => handleToggleShipped(customer.id, customer.name)}
+                  className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-bold ${isAllShipped ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                  title={isAllShipped ? "取消出貨" : "標記為已出貨"}
                 >
-                  <CheckCircle size={18} />
-                  <span className="hidden sm:inline">已出貨</span>
+                  {isAllShipped ? <PackageCheck size={18} /> : <Truck size={18} />}
+                  <span className="hidden sm:inline">{isAllShipped ? '已出貨' : '出貨'}</span>
                 </button>
                 <button 
                   onClick={() => handleExportImage(customer.id, customer.name)}
