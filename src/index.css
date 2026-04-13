@@ -98,14 +98,12 @@ body {
   .receipt-item {
     display: block !important;
     overflow: visible !important;
-    page-break-after: always;
-    break-after: page;
     page-break-inside: auto;
     break-inside: auto;
     margin-bottom: 0;
     box-shadow: none !important;
     border: none !important;
-    padding: 10mm !important;
+    padding: 0 !important;
   }
   /* Allow table rows to break across pages if a single receipt is very long */
   .receipt-item table {
