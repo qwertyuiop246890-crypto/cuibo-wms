@@ -174,30 +174,27 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
               </div>
 
               {/* Receipt Header */}
-              <div className="text-center mb-6 border-b-2 border-dashed border-[var(--color-border)] pb-4">
-                <h3 className="text-2xl print:text-5xl font-bold text-[var(--color-text)] mb-2 print:mb-4">Cuibo 倉管系統</h3>
-                <p className="text-sm print:text-2xl opacity-70">訂單明細</p>
-                <div className="mt-4 print:mt-8 text-left flex justify-between text-sm print:text-2xl">
-                  <div>
-                    <p className="font-bold text-[var(--color-text)]">顧客： {customer.name}</p>
-                    <p className="opacity-70 print:mt-2">日期： {formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyyMMddHHmm')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="opacity-70">件數： {totalItems}</p>
-                  </div>
+              <div className="text-center mb-2">
+                <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
+                <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
+                
+                <div className="flex justify-between text-xs print:text-sm text-gray-400 mb-2 px-2">
+                  <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
+                  <span>顧客：{customer.name}</span>
                 </div>
+                <div className="border-b-2 border-[#8B7355]"></div>
               </div>
 
               {/* Receipt Items */}
-              <table className="w-full text-left border-collapse mb-6 print:mb-10 print:text-3xl print:table table-fixed">
+              <table className="w-full text-left border-collapse mb-4 print:mb-6 print:table table-fixed">
                 <thead className="print:table-header-group">
-                  <tr className="border-b border-dashed border-[var(--color-border)] text-sm print:text-2xl opacity-70">
-                    <th className="w-8 print:w-16 py-2 print:py-6"></th>
-                    <th className="w-[35%] py-2 print:py-6">商品名稱</th>
-                    <th className="w-[20%] py-2 print:py-6">規格</th>
-                    <th className="w-[15%] py-2 print:py-6 text-center">數量</th>
-                    <th className="w-[15%] py-2 print:py-6 text-right">單價</th>
-                    <th className="w-[15%] py-2 print:py-6 text-right">總金額</th>
+                  <tr className="border-b border-gray-200 text-sm print:text-base text-gray-800 font-bold">
+                    <th className="w-12 print:w-16 py-3 text-center"></th>
+                    <th className="w-[30%] py-3">商品名稱</th>
+                    <th className="w-[20%] py-3">款式</th>
+                    <th className="w-[15%] py-3">單價</th>
+                    <th className="w-[10%] py-3 text-center">數量</th>
+                    <th className="w-[15%] py-3 text-right">小計</th>
                   </tr>
                 </thead>
                 <tbody className="print:table-row-group">
@@ -206,34 +203,28 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                     if (!product || order.allocatedQuantity === 0) return null;
 
                     const unitPrice = order.recalculatedSubtotal / order.allocatedQuantity;
+                    const orderDate = formatInTimeZone(order.createdAt || Date.now(), 'Asia/Taipei', 'M/dd HH:mm');
 
                     return (
-                      <tr key={order.id} className="border-b border-dashed border-gray-200 last:border-0">
-                        <td className="py-3 print:py-6 align-middle">
-                          <div className="w-5 h-5 border-2 border-[var(--color-text)] rounded-sm print:w-10 print:h-10 print:border-4"></div>
+                      <tr key={order.id} className="border-b border-gray-100 last:border-0">
+                        <td className="py-4 align-middle text-center">
+                          <div className="inline-block w-5 h-5 border-2 border-gray-800 rounded-md print:w-6 print:h-6 print:border-2"></div>
                         </td>
-                        <td className="py-3 print:py-6 pr-2 align-middle">
-                          <div 
-                            className={`font-medium text-[var(--color-text)] break-words leading-tight ${
-                              product.name.length > 15 ? 'text-xs print:text-xl' : 
-                              product.name.length > 8 ? 'text-sm print:text-2xl' : 
-                              'text-base print:text-3xl'
-                            }`}
-                          >
-                            {product.name}
-                          </div>
+                        <td className="py-4 pr-2 align-middle">
+                          <div className="font-medium text-gray-800 text-sm print:text-base">{product.name}</div>
+                          <div className="text-xs text-gray-400 mt-1">{orderDate}</div>
                         </td>
-                        <td className="py-3 print:py-6 text-[var(--color-text)] opacity-80 pr-2 align-middle break-words">
-                          <div className={product.variant && product.variant.length > 10 ? 'text-xs print:text-xl' : 'text-sm print:text-2xl'}>
-                            {product.variant || '-'}
-                          </div>
+                        <td className="py-4 text-gray-600 pr-2 align-middle text-sm print:text-base">
+                          {product.variant || '-'}
                         </td>
-                        <td className="py-3 print:py-6 text-center text-[var(--color-text)] align-middle text-sm print:text-2xl">{order.allocatedQuantity}</td>
-                        <td className="py-3 print:py-6 text-right text-[var(--color-text)] opacity-80 align-middle text-sm print:text-2xl">
-                          ${unitPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        <td className="py-4 text-gray-800 align-middle text-sm print:text-base">
+                          NT${unitPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
-                        <td className="py-3 print:py-6 text-right font-medium text-[var(--color-text)] align-middle text-sm print:text-2xl">
-                          ${order.recalculatedSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        <td className="py-4 text-center text-gray-800 align-middle text-sm print:text-base">
+                          {order.allocatedQuantity}
+                        </td>
+                        <td className="py-4 text-right font-bold text-gray-800 align-middle text-sm print:text-base">
+                          NT${order.recalculatedSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                       </tr>
                     );
@@ -242,15 +233,12 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
               </table>
 
               {/* Receipt Footer */}
-              <div className="border-t-2 border-dashed border-[var(--color-border)] pt-4 print:pt-8">
-                <div className="flex justify-between items-center text-lg print:text-4xl font-bold text-[var(--color-text)]">
-                  <span>總計</span>
-                  <span>${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                </div>
-                <div className="text-left text-xs print:text-2xl opacity-80 mt-6 print:mt-12 whitespace-pre-wrap leading-relaxed">
-                  {notificationTemplate}
-                </div>
+              <div className="flex justify-end items-center text-sm print:text-base font-bold text-gray-800 mb-8">
+                <span className="mr-4">總計金額：</span>
+                <span className="text-xl print:text-2xl text-[#8B7355]">NT${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               </div>
+
+              <div className="border-b border-dashed border-gray-300 my-8 print:my-12"></div>
             </div>
           );
         })}
