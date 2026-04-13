@@ -173,21 +173,24 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                 </button>
               </div>
 
-              {/* Receipt Header */}
-              <div className="text-center mb-2 print:break-inside-avoid">
-                <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
-                <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
-                
-                <div className="flex justify-between text-xs print:text-sm text-gray-400 mb-2 px-2">
-                  <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
-                  <span>顧客：{customer.name}</span>
-                </div>
-                <div className="border-b-2 border-[#8B7355]"></div>
-              </div>
-
               {/* Receipt Items */}
               <table className="w-full text-left border-collapse mb-4 print:mb-6 print:table table-fixed">
                 <thead className="print:table-header-group">
+                  {/* Receipt Header (Inside thead so it repeats on page break) */}
+                  <tr>
+                    <th colSpan={6} className="font-normal pb-4">
+                      <div className="text-center mb-2 print:break-inside-avoid">
+                        <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
+                        <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
+                        
+                        <div className="flex justify-between text-xs print:text-sm text-gray-400 mb-2 px-2">
+                          <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
+                          <span>顧客：{customer.name}</span>
+                        </div>
+                        <div className="border-b-2 border-[#8B7355]"></div>
+                      </div>
+                    </th>
+                  </tr>
                   <tr className="border-b border-gray-200 text-sm print:text-base text-gray-800 font-bold">
                     <th className="w-12 print:w-16 py-3 text-center"></th>
                     <th className="w-[30%] py-3">商品名稱</th>
