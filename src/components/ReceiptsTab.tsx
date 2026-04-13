@@ -174,7 +174,7 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
               </div>
 
               {/* Receipt Header */}
-              <div className="text-center mb-2">
+              <div className="text-center mb-2 print:break-inside-avoid">
                 <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
                 <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
                 
@@ -206,7 +206,7 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                     const orderDate = formatInTimeZone(order.createdAt || Date.now(), 'Asia/Taipei', 'M/dd HH:mm');
 
                     return (
-                      <tr key={order.id} className="border-b border-gray-100 last:border-0">
+                      <tr key={order.id} className="border-b border-gray-100 last:border-0 print:break-inside-avoid">
                         <td className="py-4 align-middle text-center">
                           <div className="inline-block w-5 h-5 border-2 border-gray-800 rounded-md print:w-6 print:h-6 print:border-2"></div>
                         </td>
@@ -233,7 +233,7 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
               </table>
 
               {/* Receipt Footer */}
-              <div className="flex justify-end items-center text-sm print:text-base font-bold text-gray-800 mb-8">
+              <div className="flex justify-end items-center text-sm print:text-base font-bold text-gray-800 mb-8 print:break-inside-avoid">
                 <span className="mr-4">總計金額：</span>
                 <span className="text-xl print:text-2xl text-[#8B7355]">NT${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               </div>
