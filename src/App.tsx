@@ -451,15 +451,32 @@ export default function App() {
       const ordersSnap = await getDocs(collection(userRef, 'orders'));
       ordersSnap.forEach(doc => batch.delete(doc.ref));
       
+      const defaultTemplate = `可以先幫我搭波卻可
+有誤的話～請趕快跟我說！
+₊⊹ 若是沒有漏掉的商品 ₊⊹
+₊⊹ 若是還有扭蛋 ₊⊹
+請等我第二個通知
+網址：
+找到自己名字後完成下單就可以嚕
+𐙚 收到所有連結後請盡速完成付款
+ 不要耽誤到最佳的賞味期限唷
+💡 小小提醒：
+再麻煩於 ？號前幫我完成付款，以免影響您之後的購買權益哦！
+如果期間內有困難無法付款，請務必提早私訊告知我。若是無故拖延或於約定時間未付款，以後就只能「預先儲值」才能幫您代購喊單了，再請大家多多配合與體諒 ♡
+
+⚝ p.s. 前一次連線有開箱分享的朋友~
+下單後請幫我備註一下：開箱禮
+𝐭𝐡𝐚𝐧𝐤 𝐲𝐨𝐮 („• ֊ •„)੭`;
+
       // Reset settings
-      batch.set(doc(userRef, 'settings', 'general'), { notificationTemplate: '感謝您的購買！\n\n如有任何問題，請隨時與我們聯繫。\n期待下次為您服務！' });
+      batch.set(doc(userRef, 'settings', 'general'), { notificationTemplate: defaultTemplate });
       
       await batch.commit();
       
       setProducts([]);
       setCustomers([]);
       setOrders([]);
-      setNotificationTemplate('感謝您的購買！\n\n如有任何問題，請隨時與我們聯繫。\n期待下次為您服務！');
+      setNotificationTemplate(defaultTemplate);
       setLastSynced(null);
       localStorage.removeItem('cuibo_wms_state');
     } catch (error) {
@@ -588,6 +605,7 @@ export default function App() {
             setOrders={setOrdersWithSync}
             products={products} 
             customers={customers} 
+            notificationTemplate={notificationTemplate}
           />
         )}
         {activeTab === 'settings' && (

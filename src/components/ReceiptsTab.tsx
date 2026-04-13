@@ -11,9 +11,10 @@ interface Props {
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   products: Product[];
   customers: Customer[];
+  notificationTemplate: string;
 }
 
-export default function ReceiptsTab({ orders, setOrders, products, customers }: Props) {
+export default function ReceiptsTab({ orders, setOrders, products, customers, notificationTemplate }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
   const [showShipped, setShowShipped] = useState(false);
@@ -246,9 +247,9 @@ export default function ReceiptsTab({ orders, setOrders, products, customers }: 
                   <span>總計</span>
                   <span>${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
-                <p className="text-center text-xs print:text-2xl opacity-60 mt-6 print:mt-12">
-                  感謝您的購買！
-                </p>
+                <div className="text-left text-xs print:text-2xl opacity-80 mt-6 print:mt-12 whitespace-pre-wrap leading-relaxed">
+                  {notificationTemplate}
+                </div>
               </div>
             </div>
           );
