@@ -78,6 +78,9 @@ body {
 
 /* Print Styles */
 @media print {
+  * {
+    background-color: transparent !important;
+  }
   body {
     background-color: white !important;
     padding: 0 !important;
