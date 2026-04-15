@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Printer, Download, Search, CheckCircle, Truck, PackageCheck } from 'lucide-react';
+import { Printer, Download, Search, CheckCircle, Truck, PackageCheck, Scissors } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { formatInTimeZone } from 'date-fns-tz';
+import { v4 as uuidv4 } from 'uuid';
 import { Order, Product, Customer } from '../types';
 import { useDialog } from '../hooks/useDialog';
 import { calculateSubtotal } from '../lib/priceUtils';
@@ -93,6 +94,64 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
     }
   };
 
+  const handleSplitShip = (customerId: string, customerName: string) => {
+    showConfirm("拆單寄出", `確定要將 ${customerName} 已配貨的商品拆單寄出嗎？\n\n未配貨的商品將會保留在原來的訂單中等待下次出貨。`, () => {
+      setOrders(prev => {
+        const newOrders = [...prev];
+        const customerOrders = newOrders.filter(o => o.customerId === customerId && !o.isShipped);
+        
+        customerOrders.forEach(order => {
+          if (order.allocatedQuantity === 0) {
+            // Do nothing, remains unshipped
+            return;
+          }
+          
+          if (order.allocatedQuantity === order.requestedQuantity) {
+            // Fully allocated, just mark as shipped
+            const index = newOrders.findIndex(o => o.id === order.id);
+            if (index !== -1) {
+              newOrders[index] = { ...newOrders[index], isShipped: true, updatedAt: Date.now() };
+            }
+          } else if (order.allocatedQuantity > 0 && order.allocatedQuantity < order.requestedQuantity) {
+            // Partially allocated, split the order
+            const index = newOrders.findIndex(o => o.id === order.id);
+            if (index !== -1) {
+              const originalOrder = newOrders[index];
+              const remainingQuantity = originalOrder.requestedQuantity - originalOrder.allocatedQuantity;
+              const arrivedQty = originalOrder.arrivedQuantity || 0;
+              
+              // The shipped part
+              newOrders[index] = {
+                ...originalOrder,
+                requestedQuantity: originalOrder.allocatedQuantity,
+                allocatedQuantity: originalOrder.allocatedQuantity,
+                arrivedQuantity: Math.min(arrivedQty, originalOrder.allocatedQuantity),
+                isShipped: true,
+                updatedAt: Date.now()
+              };
+              
+              // The remaining part
+              const newOrder: Order = {
+                ...originalOrder,
+                id: uuidv4(),
+                requestedQuantity: remainingQuantity,
+                allocatedQuantity: 0,
+                arrivedQuantity: Math.max(0, arrivedQty - originalOrder.allocatedQuantity),
+                isShipped: false,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              };
+              newOrders.push(newOrder);
+            }
+          }
+        });
+        
+        return newOrders;
+      });
+      showAlert("成功", `已將 ${customerName} 的訂單拆單寄出`);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center no-print">
@@ -149,6 +208,12 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
           const totalAmount = ordersWithRecalculatedSubtotal.reduce((sum, order) => sum + order.recalculatedSubtotal, 0);
           const totalItems = customerOrders.reduce((sum, order) => sum + order.allocatedQuantity, 0);
 
+          const hasIncompleteOrders = customerOrders.some(o => 
+            o.requestedQuantity > o.allocatedQuantity || o.requestedQuantity > (o.arrivedQuantity || 0)
+          );
+          const hasAllocatedItems = customerOrders.some(o => o.allocatedQuantity > 0);
+          const canSplitShip = hasIncompleteOrders && hasAllocatedItems && !isAllShipped;
+
           return (
             <div 
               key={customer.id} 
@@ -156,6 +221,16 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
               ref={el => receiptRefs.current[customer.id] = el}
             >
               <div className="absolute top-4 right-4 flex gap-2 no-print">
+                {canSplitShip && (
+                  <button 
+                    onClick={() => handleSplitShip(customer.id, customer.name)}
+                    className="p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-bold text-orange-600 bg-orange-50 hover:bg-orange-100"
+                    title="拆單寄出 (僅出貨已配貨商品)"
+                  >
+                    <Scissors size={18} />
+                    <span className="hidden sm:inline">拆單寄出</span>
+                  </button>
+                )}
                 <button 
                   onClick={() => handleToggleShipped(customer.id, customer.name)}
                   className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-bold ${isAllShipped ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
@@ -173,21 +248,24 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                 </button>
               </div>
 
-              {/* Receipt Header */}
-              <div className="text-center mb-2">
-                <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
-                <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
-                
-                <div className="flex justify-between text-xs print:text-sm text-gray-400 mb-2 px-2">
-                  <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
-                  <span>顧客：{customer.name}</span>
-                </div>
-                <div className="border-b-2 border-[#8B7355]"></div>
-              </div>
-
               {/* Receipt Items */}
               <table className="w-full text-left border-collapse mb-4 print:mb-6 print:table table-fixed">
                 <thead className="print:table-header-group">
+                  {/* Receipt Header (Inside thead so it repeats on page break) */}
+                  <tr>
+                    <th colSpan={6} className="font-normal pb-4">
+                      <div className="text-center mb-2 print:break-inside-avoid">
+                        <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
+                        <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
+                        
+                        <div className="flex justify-between text-xs print:text-sm text-gray-400 mb-2 px-2">
+                          <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
+                          <span>顧客：{customer.name}</span>
+                        </div>
+                        <div className="border-b-2 border-[#8B7355]"></div>
+                      </div>
+                    </th>
+                  </tr>
                   <tr className="border-b border-gray-200 text-sm print:text-base text-gray-800 font-bold">
                     <th className="w-12 print:w-16 py-3 text-center"></th>
                     <th className="w-[30%] py-3">商品名稱</th>
@@ -206,7 +284,7 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                     const orderDate = formatInTimeZone(order.createdAt || Date.now(), 'Asia/Taipei', 'M/dd HH:mm');
 
                     return (
-                      <tr key={order.id} className="border-b border-gray-100 last:border-0">
+                      <tr key={order.id} className="border-b border-gray-100 last:border-0 print:break-inside-avoid">
                         <td className="py-4 align-middle text-center">
                           <div className="inline-block w-5 h-5 border-2 border-gray-800 rounded-md print:w-6 print:h-6 print:border-2"></div>
                         </td>
@@ -233,7 +311,7 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
               </table>
 
               {/* Receipt Footer */}
-              <div className="flex justify-end items-center text-sm print:text-base font-bold text-gray-800 mb-8">
+              <div className="flex justify-end items-center text-sm print:text-base font-bold text-gray-800 mb-8 print:break-inside-avoid">
                 <span className="mr-4">總計金額：</span>
                 <span className="text-xl print:text-2xl text-[#8B7355]">NT${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               </div>
