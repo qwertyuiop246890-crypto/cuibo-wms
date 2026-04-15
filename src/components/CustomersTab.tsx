@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Customer, Order, Product } from '../types';
 import { useDialog } from '../hooks/useDialog';
 import CustomerDetailModal from './CustomerDetailModal';
+import { calculateSubtotal } from '../lib/priceUtils';
 
 interface Props {
   customers: Customer[];
@@ -137,11 +138,6 @@ ${notificationTemplate}`;
     });
   };
 
-  const handleTogglePaid = (customer: Customer) => {
-    const updatedCustomer = { ...customer, isPaid: !customer.isPaid, updatedAt: Date.now() };
-    setCustomers(customers.map(c => c.id === customer.id ? updatedCustomer : c));
-  };
-
   const handleToggleShipped = (customerId: string, customerName: string) => {
     const customerOrders = orders.filter(o => o.customerId === customerId);
     if (customerOrders.length === 0) return;
@@ -173,13 +169,59 @@ ${notificationTemplate}`;
     }
   };
 
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+
+  const toggleCustomerSelection = (customerId: string) => {
+    const newSelected = new Set(selectedCustomerIds);
+    if (newSelected.has(customerId)) {
+      newSelected.delete(customerId);
+    } else {
+      newSelected.add(customerId);
+    }
+    setSelectedCustomerIds(newSelected);
+  };
+
+  const handleBulkAction = (action: 'ship' | 'bill' | 'pay' | 'delete') => {
+    if (selectedCustomerIds.size === 0) {
+      showAlert("提示", "請先選擇顧客");
+      return;
+    }
+
+    const actionNames = { ship: '寄出', bill: '結單', pay: '收款', delete: '刪除' };
+    showConfirm(`確認${actionNames[action]}`, `確定要對選取的 ${selectedCustomerIds.size} 位顧客執行${actionNames[action]}嗎？`, () => {
+      if (action === 'delete') {
+        setCustomers(customers.filter(c => !selectedCustomerIds.has(c.id)));
+        setOrders(orders.filter(o => !selectedCustomerIds.has(o.customerId)));
+      } else {
+        const updates: Partial<Order> = {};
+        if (action === 'ship') updates.isShipped = true;
+        if (action === 'bill') updates.isBilled = true;
+        if (action === 'pay') updates.isPaid = true;
+        
+        setOrders(orders.map(o => selectedCustomerIds.has(o.customerId) ? { ...o, ...updates, updatedAt: Date.now() } : o));
+      }
+      setSelectedCustomerIds(new Set());
+      showAlert("成功", `已執行${actionNames[action]}`);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">顧客管理</h2>
-        <button onClick={() => handleOpenModal()} className="btn-primary flex items-center gap-2">
-          <Plus size={18} /> 新增顧客
-        </button>
+        <div className="flex gap-2">
+          {selectedCustomerIds.size > 0 && (
+            <div className="flex gap-2 mr-4">
+              <button onClick={() => handleBulkAction('bill')} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors">結單</button>
+              <button onClick={() => handleBulkAction('pay')} className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">收款</button>
+              <button onClick={() => handleBulkAction('ship')} className="px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-sm font-bold hover:bg-orange-100 transition-colors">寄出</button>
+              <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors">刪除</button>
+            </div>
+          )}
+          <button onClick={() => handleOpenModal()} className="btn-primary flex items-center gap-2">
+            <Plus size={18} /> 新增顧客
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -217,69 +259,200 @@ ${notificationTemplate}`;
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map(customer => {
-          const { allAllocated, allArrived, isAllShipped } = getCustomerStatus(customer.id);
-          return (
-          <div key={customer.id} className="card p-5 flex flex-col justify-between hover:border-blue-300 transition-colors group relative overflow-hidden">
-            {allArrived && !isAllShipped && (
-              <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
-                <PackageCheck size={12} /> 可出貨
-              </div>
-            )}
-            {!allArrived && allAllocated && !isAllShipped && (
-              <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
-                <CheckCircle size={12} /> 全部已配單
-              </div>
-            )}
-            <div onClick={() => handleOpenDetail(customer)} className="cursor-pointer mt-2">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="font-bold text-lg group-hover:text-blue-600 transition-colors flex items-center gap-2">
-                  {customer.name}
-                  <ExternalLink size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </h3>
-              </div>
-              <div className="space-y-1 text-sm opacity-80 mb-4">
-                <p>總消費額： <span className="font-bold">${customer.totalSpent.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></p>
-                <p className="text-[10px] text-gray-400 mt-2">最後更新： {formatInTimeZone(new Date(customer.updatedAt), 'Asia/Taipei', 'yyyyMMddHHmm')}</p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-4 border-t border-[var(--color-border)]">
-              <button 
-                onClick={() => handleToggleShipped(customer.id, customer.name)}
-                className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium ${isAllShipped ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-blue-600 hover:bg-blue-50'}`}
-                title={isAllShipped ? "取消出貨" : "標記為已出貨"}
+      <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
+        {/* Desktop Table View */}
+        <div className="hidden md:block">
+          <table className="w-full text-left border-collapse table-fixed">
+            <thead>
+              <tr className="bg-gray-50/50 text-[var(--color-text)] text-[11px] font-bold uppercase letter-spacing-0.05em border-b border-[var(--color-border)] opacity-50">
+                <th className="p-3 w-10 text-center">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-gray-300" 
+                    checked={filteredCustomers.length > 0 && filteredCustomers.every(c => selectedCustomerIds.has(c.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedCustomerIds(new Set(filteredCustomers.map(c => c.id)));
+                      } else {
+                        setSelectedCustomerIds(new Set());
+                      }
+                    }}
+                  />
+                </th>
+                <th className="p-3 w-[25%]">姓名</th>
+                <th className="p-3 w-[15%] text-right">總消費額</th>
+                <th className="p-3 w-[15%] text-right">未收金額</th>
+                <th className="p-3 w-[20%] text-center">狀態</th>
+                <th className="p-3 w-[25%] text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border)]">
+              {filteredCustomers.map(customer => {
+                const { allAllocated, allArrived, isAllShipped } = getCustomerStatus(customer.id);
+                const customerOrders = orders.filter(o => o.customerId === customer.id);
+                const unpaidAmount = customerOrders
+                  .filter(o => !o.isPaid)
+                  .reduce((sum, order) => sum + order.subtotal, 0);
+
+                return (
+                  <tr 
+                    key={customer.id} 
+                    className="hover:bg-blue-50/30 transition-colors cursor-pointer group"
+                    onClick={() => handleOpenDetail(customer)}
+                  >
+                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-gray-300" 
+                        checked={selectedCustomerIds.has(customer.id)}
+                        onChange={() => toggleCustomerSelection(customer.id)}
+                      />
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold">
+                          {customer.name[0]}
+                        </div>
+                        <span className="font-bold text-gray-900 truncate">{customer.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-right font-mono text-sm text-gray-600">
+                      ${customer.totalSpent.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right font-mono text-sm font-bold text-red-500">
+                      ${unpaidAmount.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex flex-wrap justify-center gap-1">
+                        {allArrived && !isAllShipped && (
+                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold rounded uppercase flex items-center gap-1">
+                            <PackageCheck size={10} /> 可出貨
+                          </span>
+                        )}
+                        {!allArrived && allAllocated && !isAllShipped && (
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-bold rounded uppercase flex items-center gap-1">
+                            <CheckCircle size={10} /> 已配單
+                          </span>
+                        )}
+                        {isAllShipped && customerOrders.length > 0 && (
+                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[9px] font-bold rounded uppercase flex items-center gap-1">
+                            <Truck size={10} /> 已出貨
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center gap-1">
+                        <button 
+                          onClick={() => handleToggleShipped(customer.id, customer.name)}
+                          className={`p-1.5 rounded transition-colors ${isAllShipped ? 'text-green-600 bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
+                          title={isAllShipped ? "取消出貨" : "標記為已出貨"}
+                        >
+                          {isAllShipped ? <PackageCheck size={14} /> : <Truck size={14} />}
+                        </button>
+                        <button onClick={() => handleCopyNotification(customer)} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="複製通知文案">
+                          <Copy size={14} />
+                        </button>
+                        <button onClick={() => handleOpenModal(customer)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(customer.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredCustomers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-10 text-center text-gray-400 text-sm">
+                    尚無顧客記錄
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-[var(--color-border)]">
+          {filteredCustomers.map(customer => {
+            const { allAllocated, allArrived, isAllShipped } = getCustomerStatus(customer.id);
+            const customerOrders = orders.filter(o => o.customerId === customer.id);
+            const unpaidAmount = customerOrders
+              .filter(o => !o.isPaid)
+              .reduce((sum, order) => sum + order.subtotal, 0);
+
+            return (
+              <div 
+                key={customer.id} 
+                className="p-4 space-y-3 cursor-pointer hover:bg-gray-50 transition-colors relative overflow-hidden"
+                onClick={() => handleOpenDetail(customer)}
               >
-                {isAllShipped ? <PackageCheck size={16} /> : <Truck size={16} />}
-                <span className="hidden sm:inline">{isAllShipped ? '已出貨' : '出貨'}</span>
-              </button>
-              <button 
-                onClick={() => handleTogglePaid(customer)} 
-                className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-medium ${customer.isPaid ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'}`} 
-                title={customer.isPaid ? "標記為未收款" : "標記為已收款"}
-              >
-                <BadgeDollarSign size={16} />
-                {customer.isPaid ? '已收款' : '未收款'}
-              </button>
-              <div className="flex-1"></div>
-              <button onClick={() => handleCopyNotification(customer)} className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors" title="複製通知文案">
-                <Copy size={16} />
-              </button>
-              <button onClick={() => handleOpenModal(customer)} className="p-2 text-[var(--color-primary)] hover:bg-[var(--color-bg)] rounded-full transition-colors">
-                <Edit2 size={16} />
-              </button>
-              <button onClick={() => handleDelete(customer.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-full transition-colors">
-                <Trash2 size={16} />
-              </button>
+                {allArrived && !isAllShipped && (
+                  <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                    <PackageCheck size={12} /> 可出貨
+                  </div>
+                )}
+                {!allArrived && allAllocated && !isAllShipped && (
+                  <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                    <CheckCircle size={12} /> 全部已配單
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div onClick={e => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-gray-300" 
+                        checked={selectedCustomerIds.has(customer.id)}
+                        onChange={() => toggleCustomerSelection(customer.id)}
+                      />
+                    </div>
+                    <h3 className="font-bold text-lg text-[var(--color-text)]">
+                      {customer.name}
+                    </h3>
+                  </div>
+                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                    <button 
+                      onClick={() => handleToggleShipped(customer.id, customer.name)}
+                      className={`p-2 rounded-lg ${isAllShipped ? 'text-green-600 bg-green-50' : 'text-blue-600 bg-blue-50'}`}
+                    >
+                      {isAllShipped ? <PackageCheck size={16} /> : <Truck size={16} />}
+                    </button>
+                    <button onClick={() => handleCopyNotification(customer)} className="p-2 text-green-600 bg-green-50 rounded-lg">
+                      <Copy size={16} />
+                    </button>
+                    <button onClick={() => handleOpenModal(customer)} className="p-2 text-[var(--color-primary)] bg-blue-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(customer.id)} className="p-2 text-red-500 bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                  <div>
+                    <span className="block text-xs text-gray-500">總消費額</span>
+                    <span className="font-bold">${customer.totalSpent.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-xs text-gray-500">未收金額</span>
+                    <span className="font-bold text-red-500">${unpaidAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredCustomers.length === 0 && (
+            <div className="p-8 text-center opacity-60">
+              找不到顧客。
             </div>
-          </div>
-          );
-        })}
-        {filteredCustomers.length === 0 && (
-          <div className="col-span-full text-center py-10 opacity-60">
-            找不到顧客。
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Modal */}
@@ -294,7 +467,7 @@ ${notificationTemplate}`;
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">總消費額</label>
-                <input type="number" className="input-field" value={totalSpent} onChange={e => setTotalSpent(Number(e.target.value))} />
+                <input type="number" className="input-field" value={Number.isNaN(totalSpent) ? '' : totalSpent} onChange={e => setTotalSpent(Number(e.target.value) || 0)} />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">

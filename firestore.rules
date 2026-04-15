@@ -37,6 +37,9 @@
 //   - allocatedQuantity: number (optional, >= 0)
 //   - arrivedQuantity: number (optional, >= 0)
 //   - isUrgent: boolean (optional)
+//   - isShipped: boolean (optional)
+//   - isPaid: boolean (optional)
+//   - isBilled: boolean (optional)
 //   - createdAt: number (required, timestamp)
 //   - note: string (optional, size < 1000)
 //   - subtotal: number (optional, >= 0)
@@ -137,7 +140,7 @@ service cloud.firestore {
 
     function isValidOrder(data) {
       return hasRequiredFields(['id', 'productId', 'customerId', 'createdAt', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'arrivedQuantity', 'isShipped', 'isUrgent', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'productId', 'customerId', 'requestedQuantity', 'allocatedQuantity', 'arrivedQuantity', 'isShipped', 'isUrgent', 'isPaid', 'isBilled', 'createdAt', 'note', 'subtotal', 'updatedAt']) &&
              isValidString('id', 1, 100) &&
              isValidString('productId', 1, 100) &&
              isValidString('customerId', 1, 100) &&
@@ -146,6 +149,8 @@ service cloud.firestore {
              isValidOptionalNumber('arrivedQuantity', 0) &&
              isValidOptionalBoolean('isShipped') &&
              isValidOptionalBoolean('isUrgent') &&
+             isValidOptionalBoolean('isPaid') &&
+             isValidOptionalBoolean('isBilled') &&
              isValidNumber('createdAt', 0) &&
              isValidOptionalString('note', 0, 1000) &&
              isValidOptionalNumber('subtotal', 0) &&

@@ -10,7 +10,6 @@ import CustomersTab from './components/CustomersTab';
 import OrdersTab from './components/OrdersTab';
 import ReceiptsTab from './components/ReceiptsTab';
 import SettingsTab from './components/SettingsTab';
-import PickingTab from './components/PickingTab';
 import { useDialog } from './hooks/useDialog';
 import CustomDialog from './components/CustomDialog';
 import { auth, db, googleProvider, signInWithPopup, onAuthStateChanged, User, handleFirestoreError, OperationType, signInWithRedirect, getRedirectResult } from './firebase';
@@ -18,7 +17,7 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query, orde
 import { calculateSubtotal } from './lib/priceUtils';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'inventory' | 'customers' | 'orders' | 'receipts' | 'settings' | 'picking'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'inventory' | 'customers' | 'orders' | 'receipts' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -230,6 +229,8 @@ export default function App() {
         allocatedQuantity: Math.max(0, order.allocatedQuantity || 0),
         arrivedQuantity: Math.max(0, order.arrivedQuantity ?? 0),
         isShipped: order.isShipped || false,
+        isPaid: order.isPaid || false,
+        isBilled: order.isBilled || false,
         subtotal: Math.max(0, order.subtotal || 0),
         note: order.note || '',
         isUrgent: order.isUrgent || false,
@@ -549,8 +550,7 @@ export default function App() {
         {/* Desktop Navigation Tabs */}
         <div className="hidden md:flex max-w-6xl mx-auto px-4 gap-6 overflow-x-auto hide-scrollbar">
           <TabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={18} />} label="儀表板" />
-          <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={18} />} label="訂單" />
-          <TabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={18} />} label="配貨/到貨" />
+          <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={18} />} label="訂單與配貨" />
           <TabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={18} />} label="庫存" />
           <TabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={<Package size={18} />} label="商品" />
           <TabButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={18} />} label="顧客" />
@@ -591,14 +591,6 @@ export default function App() {
             setCustomers={setCustomersWithSync}
           />
         )}
-        {activeTab === 'picking' && (
-          <PickingTab 
-            orders={orders} 
-            setOrders={setOrdersWithSync} 
-            products={products} 
-            customers={customers} 
-          />
-        )}
         {activeTab === 'receipts' && (
           <ReceiptsTab 
             orders={orders} 
@@ -621,8 +613,7 @@ export default function App() {
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] flex justify-around items-center py-2 px-1 z-50 no-print">
         <MobileTabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp size={20} />} label="儀表板" />
-        <MobileTabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={20} />} label="訂單" />
-        <MobileTabButton active={activeTab === 'picking'} onClick={() => setActiveTab('picking')} icon={<Package size={20} />} label="配貨/到貨" />
+        <MobileTabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingCart size={20} />} label="訂單配貨" />
         <MobileTabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="庫存" />
         <MobileTabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={<Package size={20} />} label="商品" />
         <MobileTabButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={20} />} label="顧客" />

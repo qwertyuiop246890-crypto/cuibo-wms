@@ -138,6 +138,7 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                 allocatedQuantity: 0,
                 arrivedQuantity: Math.max(0, arrivedQty - originalOrder.allocatedQuantity),
                 isShipped: false,
+                isPaid: false,
                 createdAt: Date.now(),
                 updatedAt: Date.now()
               };

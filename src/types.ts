@@ -31,7 +31,9 @@ export interface Order {
   subtotal: number;
   isArrived?: boolean; // Deprecated, use arrivedQuantity
   arrivedQuantity?: number;
+  isBilled?: boolean; // New field: "Billed status" (結單)
   isShipped?: boolean; // New field: "Shipped status"
+  isPaid?: boolean; // New field: "Paid status"
   createdAt: number;
   updatedAt: number;
 }

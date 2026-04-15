@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Copy, Check, Save, Trash2, Plus, Edit2 } from 'lucide-react';
+import { X, Copy, Check, Save, Trash2, Plus, Edit2, Truck } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Customer, Order, Product } from '../types';
@@ -20,6 +20,8 @@ interface Props {
 export default function CustomerDetailModal({ customer, orders, setOrders, products, setProducts, notificationTemplate, onClose, onUpdateCustomerName }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [copied, setCopied] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'pending' | 'billed'>('pending');
   
   // Edit Name State
   const [isEditingName, setIsEditingName] = useState(false);
@@ -110,6 +112,14 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   
   // Local state for editing orders
   const customerOrders = useMemo(() => orders.filter(o => o.customerId === customer.id), [orders, customer.id]);
+  
+  const displayedOrders = useMemo(() => {
+    if (activeTab === 'pending') {
+      return customerOrders.filter(o => !o.isBilled);
+    } else {
+      return customerOrders.filter(o => o.isBilled);
+    }
+  }, [customerOrders, activeTab]);
 
   const handleUpdateOrder = (orderId: string, updates: Partial<Order>) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates, updatedAt: Date.now() } : o));
@@ -126,6 +136,10 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   };
 
   const totalAmount = customerOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const unpaidAmount = customerOrders
+    .filter(o => !o.isPaid)
+    .reduce((sum, order) => sum + order.subtotal, 0);
+
   const totalRequested = customerOrders.reduce((sum, o) => sum + o.requestedQuantity, 0);
   const totalAllocated = customerOrders.reduce((sum, o) => sum + o.allocatedQuantity, 0);
   const totalArrived = customerOrders.reduce((sum, o) => sum + (o.arrivedQuantity ?? 0), 0);
@@ -134,7 +148,13 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   const isAllShipped = customerOrders.length > 0 && customerOrders.every(o => o.isShipped);
 
   const notificationText = useMemo(() => {
-    const orderItemsText = customerOrders.map(o => {
+    const ordersToNotify = selectedOrders.size > 0 
+      ? customerOrders.filter(o => selectedOrders.has(o.id))
+      : displayedOrders;
+
+    const notifyTotalAmount = ordersToNotify.reduce((sum, o) => sum + o.subtotal, 0);
+
+    const orderItemsText = ordersToNotify.map(o => {
       const product = products.find(p => p.id === o.productId);
       return `${product?.name || '未知商品'} ${product?.variant ? `(${product.variant})` : ''} x ${o.requestedQuantity} $${product?.price || 0}`;
     }).join('\n');
@@ -144,15 +164,58 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
 
 ${orderItemsText}
 ----------------
-消費總額：$${totalAmount.toLocaleString()}
+消費總額：$${notifyTotalAmount.toLocaleString()}
 
 ${notificationTemplate}`;
-  }, [customer.name, customerOrders, products, totalAmount, notificationTemplate]);
+  }, [customer.name, customerOrders, products, notificationTemplate, selectedOrders]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(notificationText).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedOrders.size === displayedOrders.length) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(displayedOrders.map(o => o.id)));
+    }
+  };
+
+  const handleToggleSelectOrder = (orderId: string) => {
+    const newSelected = new Set(selectedOrders);
+    if (newSelected.has(orderId)) {
+      newSelected.delete(orderId);
+    } else {
+      newSelected.add(orderId);
+    }
+    setSelectedOrders(newSelected);
+  };
+
+  const handleBillSelected = () => {
+    if (selectedOrders.size === 0) {
+      showAlert("提示", "請先選擇要結單的訂單");
+      return;
+    }
+    showConfirm("確認結單", `確定要將選取的 ${selectedOrders.size} 筆訂單結單嗎？`, () => {
+      setOrders(prev => prev.map(o => 
+        selectedOrders.has(o.id) ? { ...o, isBilled: true, updatedAt: Date.now() } : o
+      ));
+      setSelectedOrders(new Set());
+      showAlert("成功", "已結單");
+    });
+  };
+
+  const handleBulkStatusUpdate = (status: 'isPaid' | 'isBilled' | 'isShipped', value: boolean) => {
+    const statusNames = { isPaid: '收款', isBilled: '結單', isShipped: '寄出' };
+    const valueName = value ? '已' : '未';
+    showConfirm(`確認變更`, `確定要將所有訂單標記為${valueName}${statusNames[status]}嗎？`, () => {
+      setOrders(prev => prev.map(o => 
+        o.customerId === customer.id ? { ...o, [status]: value, updatedAt: Date.now() } : o
+      ));
+      showAlert("成功", "已更新狀態");
     });
   };
 
@@ -188,10 +251,11 @@ ${notificationTemplate}`;
             )}
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="text-sm text-gray-500">配單數代表已配到幾個，欠數代表還差幾個</span>
-              <div className="flex gap-2 ml-2">
+              <div className="flex flex-wrap gap-2 ml-2">
                 <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full">總需求: <span className="font-bold">{totalRequested}</span></span>
                 <span className="text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">總配單: <span className="font-bold">{totalAllocated}</span></span>
                 <span className="text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-full">總到貨: <span className="font-bold">{totalArrived}</span></span>
+                <span className="text-sm bg-red-50 text-red-700 px-2 py-0.5 rounded-full">未收金額: <span className="font-bold">${unpaidAmount.toLocaleString()}</span></span>
                 {canShip && !isAllShipped && (
                   <span className="text-sm bg-green-500 text-white px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                     <Check size={14} /> 可出貨
@@ -199,8 +263,43 @@ ${notificationTemplate}`;
                 )}
               </div>
             </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button 
+                onClick={() => handleBulkStatusUpdate('isBilled', true)}
+                className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors font-bold"
+              >
+                全部結單
+              </button>
+              <button 
+                onClick={() => handleBulkStatusUpdate('isPaid', true)}
+                className="text-[10px] px-2 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors font-bold"
+              >
+                全部已收
+              </button>
+              <button 
+                onClick={() => handleBulkStatusUpdate('isPaid', false)}
+                className="text-[10px] px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors font-bold"
+              >
+                全部未收
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-4">
+            <button 
+              onClick={handleBillSelected} 
+              disabled={selectedOrders.size === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-colors ${
+                selectedOrders.size > 0 
+                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <Check size={18} /> 結單 ({selectedOrders.size})
+            </button>
+            <button onClick={handleCopy} className="btn-secondary flex items-center gap-2">
+              {copied ? <Check size={18} /> : <Copy size={18} />}
+              {copied ? '已複製' : '複製'}
+            </button>
             <button onClick={() => setIsAddOrderModalOpen(true)} className="btn-primary flex items-center gap-2">
               <Plus size={18} /> 新增訂單
             </button>
@@ -212,128 +311,126 @@ ${notificationTemplate}`;
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-6">
+          <div className="flex border-b border-gray-200 mb-6">
+            <button 
+              onClick={() => { setActiveTab('pending'); setSelectedOrders(new Set()); }}
+              className={`px-6 py-2 font-bold transition-colors border-b-2 ${activeTab === 'pending' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            >
+              訂單明細 ({customerOrders.filter(o => !o.isBilled).length})
+            </button>
+            <button 
+              onClick={() => { setActiveTab('billed'); setSelectedOrders(new Set()); }}
+              className={`px-6 py-2 font-bold transition-colors border-b-2 ${activeTab === 'billed' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            >
+              結帳記錄 ({customerOrders.filter(o => o.isBilled).length})
+            </button>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse table-fixed">
               <thead>
-                <tr className="border-b border-gray-200 text-sm font-bold text-gray-600">
-                  <th className="py-3 px-2">商品名稱</th>
-                  <th className="py-3 px-2">規格</th>
-                  <th className="py-3 px-2 w-20">需求數</th>
-                  <th className="py-3 px-2 w-20">配單數</th>
-                  <th className="py-3 px-2 w-20 text-red-500">欠數</th>
-                  <th className="py-3 px-2 w-20 text-green-600">到貨</th>
-                  <th className="py-3 px-2 w-24">單價</th>
-                  <th className="py-3 px-2 w-28">總價</th>
-                  <th className="py-3 px-2 w-24">建立日期</th>
-                  <th className="py-3 px-2 w-12"></th>
+                <tr className="bg-gray-50/50 text-[11px] font-bold uppercase letter-spacing-0.05em text-gray-400 border-b border-gray-200">
+                  <th className="p-3 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-gray-300" 
+                      checked={displayedOrders.length > 0 && selectedOrders.size === displayedOrders.length}
+                      onChange={handleToggleSelectAll}
+                    />
+                  </th>
+                  <th className="p-3 w-[30%]">商品名稱</th>
+                  <th className="p-3 w-[15%] text-center">明細</th>
+                  <th className="p-3 w-[15%] text-right">金額</th>
+                  <th className="p-3 w-12 text-center">到貨</th>
+                  <th className="p-3 w-12 text-center">配單</th>
+                  <th className="p-3 w-12 text-center">結單</th>
+                  <th className="p-3 w-12 text-center">收款</th>
+                  <th className="p-3 w-12 text-center">寄出</th>
+                  <th className="p-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {customerOrders.map(order => {
+                {displayedOrders.map(order => {
                   const product = products.find(p => p.id === order.productId);
                   if (!product) return null;
-                  const owed = Math.max(0, order.requestedQuantity - order.allocatedQuantity);
+                  const isArrived = (order.arrivedQuantity ?? 0) >= order.requestedQuantity && order.requestedQuantity > 0;
+                  const isFullyAllocated = order.allocatedQuantity >= order.requestedQuantity;
 
                   return (
-                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-2">
+                    <tr key={order.id} className={`hover:bg-blue-50/30 transition-colors group ${order.isPaid ? 'opacity-70' : ''}`}>
+                      <td className="p-3 text-center">
                         <input 
-                          type="text" 
-                          className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
-                          value={product.name}
-                          onChange={(e) => handleUpdateProduct(product.id, { name: e.target.value })}
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-gray-300" 
+                          checked={selectedOrders.has(order.id)}
+                          onChange={() => handleToggleSelectOrder(order.id)}
                         />
                       </td>
-                      <td className="py-3 px-2">
-                        <input 
-                          type="text" 
-                          className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
-                          value={product.variant}
-                          onChange={(e) => handleUpdateProduct(product.id, { variant: e.target.value })}
-                        />
+                      <td className="p-3">
+                        <div className="overflow-hidden">
+                          <div className="font-medium text-sm text-gray-900 flex items-center gap-2 truncate">
+                            {product.name}
+                            {order.isUrgent && (
+                              <span className="shrink-0 px-1 py-0.5 bg-red-100 text-red-600 text-[9px] font-bold rounded uppercase">緊急</span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-0.5 truncate">{product.variant || '-'}</div>
+                        </div>
                       </td>
-                      <td className="py-3 px-2">
-                        <input 
-                          type="number" 
-                          className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-medium"
-                          value={order.requestedQuantity}
-                          onChange={(e) => {
-                            const qty = Math.max(1, Number(e.target.value) || 1);
-                            const subtotal = calculateSubtotal(product, qty);
-                            handleUpdateOrder(order.id, { requestedQuantity: qty, subtotal });
-                          }}
-                        />
+                      <td className="p-3 text-center text-[11px] font-mono text-gray-400">
+                        {order.requestedQuantity} × {product.price}
                       </td>
-                      <td className="py-3 px-2">
-                        <input 
-                          type="number" 
-                          className={`w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-bold ${
-                            order.allocatedQuantity < order.requestedQuantity ? 'text-red-500' : 'text-green-600'
-                          }`}
-                          value={order.allocatedQuantity}
-                          onChange={(e) => handleUpdateOrder(order.id, { allocatedQuantity: Math.max(0, Number(e.target.value) || 0) })}
-                        />
+                      <td className="p-3 text-right font-mono text-sm font-medium text-gray-900">
+                        {order.subtotal.toLocaleString()}
                       </td>
-                      <td className="py-3 px-2">
-                        <span className={`font-bold ${owed > 0 ? 'text-red-600' : 'text-gray-300'}`}>
-                          {owed}
-                        </span>
+                      <td className="p-3 text-center">
+                        {isArrived ? <span className="text-green-600 text-xs">●</span> : <span className="text-gray-200 text-[10px]">○</span>}
                       </td>
-                      <td className="py-3 px-2">
-                        <input 
-                          type="number" 
-                          className={`w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-bold ${
-                            (order.arrivedQuantity ?? 0) < order.allocatedQuantity ? 'text-orange-500' : 'text-green-600'
-                          }`}
-                          value={order.arrivedQuantity ?? 0}
-                          onChange={(e) => handleUpdateOrder(order.id, { arrivedQuantity: Math.max(0, Number(e.target.value) || 0) })}
-                        />
+                      <td className="p-3 text-center">
+                        {isFullyAllocated ? <span className="text-blue-600 text-xs">●</span> : <span className="text-gray-200 text-[10px]">○</span>}
                       </td>
-                      <td className="py-3 px-2">
-                        <input 
-                          type="number" 
-                          className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
-                          value={product.price}
-                          onChange={(e) => {
-                            const price = Math.max(0, Number(e.target.value) || 0);
-                            const updatedProduct = { ...product, price };
-                            const subtotal = calculateSubtotal(updatedProduct, order.requestedQuantity);
-                            handleUpdateProduct(product.id, { price });
-                            handleUpdateOrder(order.id, { subtotal });
-                          }}
-                        />
-                      </td>
-                      <td className="py-3 px-2">
-                        <input 
-                          type="number" 
-                          className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 font-bold text-blue-600"
-                          value={order.subtotal}
-                          onChange={(e) => handleUpdateOrder(order.id, { subtotal: Number(e.target.value) })}
-                        />
-                      </td>
-                      <td className="py-3 px-2 text-sm text-gray-500">
-                        {formatInTimeZone(new Date(order.createdAt), 'Asia/Taipei', 'yyyy/MM/dd')}
-                      </td>
-                      <td className="py-3 px-2">
+                      <td className="p-3 text-center">
                         <button 
-                          onClick={() => handleDeleteOrder(order.id)}
-                          className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                          onClick={() => handleUpdateOrder(order.id, { isBilled: !order.isBilled })}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${order.isBilled ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                         >
-                          <Trash2 size={16} />
+                          <Check size={12} />
+                        </button>
+                      </td>
+                      <td className="p-3 text-center">
+                        <button 
+                          onClick={() => handleUpdateOrder(order.id, { isPaid: !order.isPaid })}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${order.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                        >
+                          <Check size={12} />
+                        </button>
+                      </td>
+                      <td className="p-3 text-center">
+                        <button 
+                          onClick={() => handleUpdateOrder(order.id, { isShipped: !order.isShipped })}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${order.isShipped ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                        >
+                          <Truck size={12} />
+                        </button>
+                      </td>
+                      <td className="p-3 text-right">
+                        <button onClick={() => handleDeleteOrder(order.id)} className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100">
+                          <Trash2 size={14} />
                         </button>
                       </td>
                     </tr>
                   );
                 })}
+                {displayedOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="p-10 text-center text-gray-400 text-sm">
+                      尚無訂單記錄
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
-
-          {customerOrders.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              目前沒有訂單
-            </div>
-          )}
 
           <div className="mt-8 p-6 bg-blue-50 rounded-2xl border border-blue-100">
             <div className="flex justify-between items-center mb-4">
@@ -405,8 +502,8 @@ ${notificationTemplate}`;
                     <input 
                       type="number" 
                       className="input-field" 
-                      value={productPrice} 
-                      onChange={e => setProductPrice(Number(e.target.value))} 
+                      value={Number.isNaN(productPrice) ? '' : productPrice} 
+                      onChange={e => setProductPrice(Number(e.target.value) || 0)} 
                     />
                   </div>
                   <div>
@@ -415,8 +512,8 @@ ${notificationTemplate}`;
                       type="number" 
                       min="1" 
                       className="input-field" 
-                      value={requestedQuantity} 
-                      onChange={e => setRequestedQuantity(Number(e.target.value))} 
+                      value={Number.isNaN(requestedQuantity) ? '' : requestedQuantity} 
+                      onChange={e => setRequestedQuantity(Number(e.target.value) || 1)} 
                     />
                   </div>
                 </div>
@@ -429,7 +526,7 @@ ${notificationTemplate}`;
                     type="number" 
                     min="0" 
                     className="input-field" 
-                    value={allocatedQuantity} 
+                    value={Number.isNaN(allocatedQuantity) ? '' : allocatedQuantity} 
                     onChange={e => setAllocatedQuantity(Math.max(0, Number(e.target.value) || 0))} 
                   />
                 </div>
