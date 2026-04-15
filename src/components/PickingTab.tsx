@@ -13,6 +13,7 @@ interface PickingTabProps {
 export default function PickingTab({ orders, setOrders, products, customers }: PickingTabProps) {
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [arrivalInputs, setArrivalInputs] = useState<Record<string, number>>({});
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Group orders by product
   const pickingList = useMemo(() => {
@@ -52,6 +53,19 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
 
     return result;
   }, [orders, products]);
+
+  const filteredPickingList = useMemo(() => {
+    if (!searchTerm) return pickingList;
+    const lowerSearch = searchTerm.toLowerCase();
+    return pickingList.filter(group => 
+      group.product.name.toLowerCase().includes(lowerSearch) ||
+      (group.product.variant && group.product.variant.toLowerCase().includes(lowerSearch)) ||
+      group.orders.some(order => {
+        const customer = customers.find(c => c.id === order.customerId);
+        return customer && customer.name.toLowerCase().includes(lowerSearch);
+      })
+    );
+  }, [pickingList, searchTerm, customers]);
 
   const handleAllocate = (orderId: string, allocatedQty: number) => {
     setOrders(prev => prev.map(o => 
@@ -194,23 +208,38 @@ export default function PickingTab({ orders, setOrders, products, customers }: P
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <h2 className="text-xl font-bold text-[var(--color-text)]">買到與到貨管理</h2>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button 
-            onClick={() => handleClearAllocations()}
-            className="flex-1 sm:flex-none px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            清除全部買到
-          </button>
-          <button 
-            onClick={handleAutoAllocateAll}
-            className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-          >
-            全部自動買到
-          </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <input 
+            type="text" 
+            placeholder="搜尋商品或顧客..." 
+            className="input-field w-full sm:w-64"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+              onClick={() => handleClearAllocations()}
+              className="flex-1 sm:flex-none px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              清除全部買到
+            </button>
+            <button 
+              onClick={handleAutoAllocateAll}
+              className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+            >
+              全部自動買到
+            </button>
+          </div>
         </div>
       </div>
 
-      {pickingList.map(group => {
+      {filteredPickingList.length === 0 && searchTerm && (
+        <div className="text-center py-8 text-gray-500">
+          找不到符合「{searchTerm}」的商品或顧客
+        </div>
+      )}
+
+      {filteredPickingList.map(group => {
         const isExpanded = expandedProductId === group.product.id;
         const isFullyAllocated = group.totalAllocated === group.totalRequested;
         const stockShortage = group.totalRequested > (group.product.purchaseQuantity || 0);
