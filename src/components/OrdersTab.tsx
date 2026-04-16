@@ -233,13 +233,31 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   const availableVariants = products.filter(p => p.name === productName).map(p => p.variant);
 
   const groupedOrders = useMemo(() => {
-    const groups: Record<string, { product: Product | undefined; orders: Order[]; totalRequested: number; totalAllocated: number; totalArrived: number; totalSubtotal: number }> = {};
+    const groups: Record<string, { 
+      product: Product | undefined; 
+      orders: Order[]; 
+      totalRequested: number; 
+      totalAllocated: number; 
+      totalArrived: number; 
+      totalSubtotal: number;
+      availableStock: number;
+      pendingPurchase: number;
+    }> = {};
     
     filteredOrders.forEach(order => {
       const pId = order.productId;
       if (!groups[pId]) {
         const product = products.find(p => p.id === pId);
-        groups[pId] = { product, orders: [], totalRequested: 0, totalAllocated: 0, totalArrived: 0, totalSubtotal: 0 };
+        groups[pId] = { 
+          product, 
+          orders: [], 
+          totalRequested: 0, 
+          totalAllocated: 0, 
+          totalArrived: 0, 
+          totalSubtotal: 0,
+          availableStock: 0,
+          pendingPurchase: 0
+        };
       }
       groups[pId].orders.push(order);
       groups[pId].totalRequested += order.requestedQuantity;
@@ -248,7 +266,19 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       groups[pId].totalSubtotal += order.subtotal;
     });
 
-    return Object.values(groups).sort((a, b) => {
+    return Object.values(groups).map(group => {
+      const pId = group.product?.id;
+      const productOrders = orders.filter(o => o.productId === pId);
+      const globalRequested = productOrders.reduce((sum, o) => sum + o.requestedQuantity, 0);
+      const globalAllocated = productOrders.reduce((sum, o) => sum + o.allocatedQuantity, 0);
+      const purchased = group.product?.purchaseQuantity || 0;
+
+      return {
+        ...group,
+        availableStock: Math.max(0, purchased - globalAllocated),
+        pendingPurchase: Math.max(0, globalRequested - purchased)
+      };
+    }).sort((a, b) => {
       const nameA = a.product?.name || '';
       const nameB = b.product?.name || '';
       return nameA.localeCompare(nameB);
@@ -322,6 +352,22 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   };
 
   const handleAllocate = (orderId: string, allocatedQty: number) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const product = products.find(p => p.id === order.productId);
+    const otherOrdersAllocated = orders
+      .filter(o => o.productId === order.productId && o.id !== orderId)
+      .reduce((sum, o) => sum + o.allocatedQuantity, 0);
+    
+    const totalPurchased = product?.purchaseQuantity || 0;
+    const maxPossible = totalPurchased - otherOrdersAllocated;
+
+    if (allocatedQty > maxPossible && allocatedQty > order.allocatedQuantity) {
+      showAlert("庫存不足", `目前「${product?.name}」實際已採購數量為 ${totalPurchased}，扣除其他訂單已配貨量，此訂單最多隻能配貨 ${Math.max(0, maxPossible)} 個。`);
+      return;
+    }
+
     setOrders(prev => prev.map(o => 
       o.id === orderId ? { ...o, allocatedQuantity: allocatedQty, updatedAt: Date.now() } : o
     ));
@@ -331,6 +377,12 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
     setOrders(prev => prev.map(o => 
       o.id === orderId ? { ...o, arrivedQuantity: arrivedQty, updatedAt: Date.now() } : o
     ));
+  };
+
+  const handleToggleStatus = (orderId: string, field: 'isBilled' | 'isPaid' | 'isShipped') => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, [field]: !order[field], updatedAt: Date.now() } : o));
   };
 
   const handleAutoArriveProduct = (productId: string, totalArrived: number) => {
@@ -465,83 +517,85 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex overflow-x-auto hide-scrollbar snap-x pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:overflow-visible md:flex-wrap gap-2 shrink-0">
           {selectedOrderIds.size > 0 && (
-            <div className="flex gap-2 mr-2">
-              <button onClick={() => handleBulkAction('bill')} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors">結單</button>
-              <button onClick={() => handleBulkAction('pay')} className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">收款</button>
-              <button onClick={() => handleBulkAction('ship')} className="px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-sm font-bold hover:bg-orange-100 transition-colors">寄出</button>
-              <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors">刪除</button>
+            <div className="flex shrink-0 gap-2 mr-2 snap-start">
+              <button onClick={() => handleBulkAction('bill')} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors whitespace-nowrap">結單</button>
+              <button onClick={() => handleBulkAction('pay')} className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors whitespace-nowrap">收款</button>
+              <button onClick={() => handleBulkAction('ship')} className="px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-sm font-bold hover:bg-orange-100 transition-colors whitespace-nowrap">寄出</button>
+              <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors whitespace-nowrap">刪除</button>
             </div>
           )}
           {viewMode === 'product' && (
-            <div className="flex gap-2 mr-2">
-              <button onClick={() => handleClearAllocations()} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">清除全部買到</button>
-              <button onClick={handleAutoAllocateAll} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors shadow-sm">全部自動買到</button>
+            <div className="flex shrink-0 gap-2 mr-2 snap-start">
+              <button onClick={() => handleClearAllocations()} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors whitespace-nowrap">清除全部買到</button>
+              <button onClick={handleAutoAllocateAll} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors shadow-sm whitespace-nowrap">全部自動買到</button>
             </div>
           )}
           <button 
             onClick={handleCleanUnknownOrders} 
-            className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-bold text-sm flex items-center gap-2"
+            className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-bold text-sm flex shrink-0 items-center gap-2 snap-start whitespace-nowrap"
           >
             <Trash2 size={18} /> 清理未知
           </button>
           <button 
             onClick={() => handleOpenModal()} 
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex shrink-0 items-center gap-2 snap-start whitespace-nowrap"
           >
             <Plus size={18} /> 新增訂單
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
           <input 
             type="text" 
             placeholder="依商品或顧客搜尋訂單..." 
-            className="input-field"
+            className="input-field w-full"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+        <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent"
+            className="p-1 min-w-[120px] flex-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent"
           />
-          <span className="text-gray-400">-</span>
+          <span className="text-gray-400 hidden sm:inline">-</span>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent"
+            className="p-1 min-w-[120px] flex-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent"
           />
           {(startDate || endDate) && (
             <button 
               onClick={() => { setStartDate(''); setEndDate(''); }}
-              className="text-xs text-red-500 hover:text-red-700 px-2"
+              className="text-xs text-red-500 hover:text-red-700 px-2 shrink-0 border border-red-200 rounded py-1 ml-auto lg:ml-0"
             >
               清除
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)] px-2">
-            <input 
-              type="checkbox" 
-              checked={showShipped} 
-              onChange={(e) => setShowShipped(e.target.checked)}
-              className="rounded text-blue-600 focus:ring-blue-500"
-            />
-            顯示已出貨
-          </label>
-        </div>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-[var(--color-border)]">
-          <DollarSign size={18} className="text-[var(--color-primary)]" />
-          <span className="font-bold text-[var(--color-text)]">總計: ${totalAmount.toLocaleString()}</span>
+        <div className="flex flex-wrap lg:flex-nowrap gap-4">
+          <div className="flex flex-1 lg:flex-none items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)] px-2">
+              <input 
+                type="checkbox" 
+                checked={showShipped} 
+                onChange={(e) => setShowShipped(e.target.checked)}
+                className="rounded text-blue-600 focus:ring-blue-500"
+              />
+              顯示已出貨
+            </label>
+          </div>
+          <div className="flex flex-1 lg:flex-none justify-center lg:justify-start items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-[var(--color-border)]">
+            <DollarSign size={18} className="text-emerald-500" />
+            <span className="font-bold text-[var(--color-text)] text-sm md:text-base">總計: ${totalAmount.toLocaleString()}</span>
+          </div>
         </div>
       </div>
 
@@ -554,10 +608,10 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                 <th className="p-3 w-10 text-center"></th>
                 <th className="p-3 w-[25%]">商品 / 備註</th>
                 <th className="p-3 w-[15%]">顧客</th>
-                <th className="p-3 w-[12%] text-center">明細</th>
+                <th className="p-3 w-[12%] text-center">訂單總數</th>
                 <th className="p-3 w-[12%] text-right">金額</th>
-                <th className="p-3 w-12 text-center">到貨</th>
-                <th className="p-3 w-12 text-center">配單</th>
+                <th className="p-3 w-12 text-center">到貨數量</th>
+                <th className="p-3 w-12 text-center">配貨數量</th>
                 <th className="p-3 w-12 text-center">結單</th>
                 <th className="p-3 w-12 text-center">收款</th>
                 <th className="p-3 w-12 text-center">寄出</th>
@@ -591,7 +645,20 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
                       </td>
                       <td className="p-3 text-[11px] text-gray-400 font-normal truncate">
                         {viewMode === 'product' ? (
-                          <span className="text-blue-600 font-bold">進貨: {group.product?.purchaseQuantity || 0}</span>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                              <span className="text-blue-700 font-bold">採購: {group.product?.purchaseQuantity || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              <span className="text-green-700 font-bold">現貨: {group.availableStock}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              <span className="text-red-600 font-bold">待採: {group.pendingPurchase}</span>
+                            </div>
+                          </div>
                         ) : (
                           `共 ${group.orders.length} 筆`
                         )}
@@ -779,98 +846,209 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
             const isProductSelected = orderIds.every(id => selectedOrderIds.has(id));
 
             return (
-              <div key={productId} className="border-b border-gray-100">
+              <div key={productId} className="bg-white">
                 {/* Product Header Mobile */}
                 <div 
-                  className="p-4 bg-gray-50 flex items-center justify-between cursor-pointer"
+                  className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${isExpanded ? 'bg-blue-50/30' : 'bg-gray-50'}`}
                   onClick={() => toggleProductExpand(productId)}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 overflow-hidden">
                     <input 
                       type="checkbox" 
-                      className="w-4 h-4 rounded border-gray-300" 
+                      className="w-5 h-5 rounded border-gray-300 shrink-0" 
                       checked={isProductSelected}
                       onChange={(e) => { e.stopPropagation(); toggleProductSelection(productId, orderIds); }}
                     />
-                    <div>
-                      <h3 className="font-bold">{group.product?.name || '未知商品'}</h3>
-                      <p className="text-xs text-gray-500">{group.product?.variant || '-'} | 共 {group.orders.length} 筆</p>
+                    <div className="overflow-hidden">
+                      <h3 className="font-bold text-sm truncate">{group.product?.name || '未知商品'}</h3>
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                        <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{group.product?.variant || '-'}</span>
+                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">採購: {group.product?.purchaseQuantity || 0}</span>
+                        <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded font-bold">現貨: {group.availableStock}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${group.pendingPurchase > 0 ? 'text-red-500 bg-red-50' : 'text-gray-400 bg-gray-50'}`}>
+                          待採: {group.pendingPurchase}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-2">
-                    <div className="text-sm font-bold">${group.totalSubtotal.toLocaleString()}</div>
-                    <span className="text-gray-400">{isExpanded ? '▼' : '▶'}</span>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <div className="text-right">
+                      <div className="text-[10px] text-gray-400">訂單總數</div>
+                      <div className="font-bold text-sm">{group.totalRequested}</div>
+                    </div>
+                    <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
                   </div>
                 </div>
 
-                {/* Orders Mobile */}
-                {isExpanded && group.orders.map(order => {
-                  const customer = customers.find(c => c.id === order.customerId);
-                  const isFullyAllocated = order.allocatedQuantity >= order.requestedQuantity;
-                  const isArrived = (order.arrivedQuantity ?? 0) >= order.requestedQuantity && order.requestedQuantity > 0;
-                  
-                  return (
-                    <div 
-                      key={order.id} 
-                      className="p-4 pl-8 space-y-3 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-l-blue-50"
-                      onClick={() => handleOpenModal(order)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
-                          <input 
-                            type="checkbox" 
-                            className="w-4 h-4 rounded border-gray-300" 
-                            checked={selectedOrderIds.has(order.id)}
-                            onChange={() => toggleOrderSelection(order.id)}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                            <span className="text-sm font-bold">{customer?.name || '未知'}</span>
-                            {order.isUrgent && (
-                              <span className="px-1.5 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded uppercase">緊急</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">{order.note || '無備註'}</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-base">${order.subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                          <div className="text-[10px] text-gray-500">{order.requestedQuantity} × {group.product?.price || 0}</div>
-                        </div>
+                {/* Allocation Control Mobile */}
+                {viewMode === 'product' && isExpanded && (
+                  <div className="p-3 bg-blue-50/50 border-y border-blue-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] text-blue-800 font-bold flex items-center gap-1">
+                        <Truck size={14} /> 到貨分配 (僅分配給已買到)
                       </div>
-                      
-                      <div className="flex justify-between items-center bg-white p-2 rounded-lg text-[10px] border border-gray-100">
-                        <div className="flex flex-col items-center">
-                          <span className="text-gray-400">到貨</span>
-                          {isArrived ? <span className="text-green-600 font-bold">✔</span> : <span className="text-gray-300">—</span>}
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-gray-400">配單</span>
-                          {isFullyAllocated ? <span className="text-green-600 font-bold">✔</span> : <span className="text-gray-300">—</span>}
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-gray-400">結單</span>
-                          {order.isBilled ? <span className="text-green-600 font-bold">✔</span> : <span className="text-gray-300">—</span>}
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-gray-400">收款</span>
-                          {order.isPaid ? <span className="text-green-600 font-bold">✔</span> : <span className="text-gray-300">—</span>}
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-gray-400">寄出</span>
-                          {order.isShipped ? <span className="text-green-600 font-bold">✔</span> : <span className="text-gray-300">—</span>}
-                        </div>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleClearAllocations(productId); }}
+                          className="px-2 py-1 bg-white text-gray-600 text-[10px] font-bold rounded border border-gray-200"
+                        >
+                          清除買到
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleAutoAllocateProduct(productId); }}
+                          className="px-2 py-1 bg-blue-600 text-white text-[10px] font-bold rounded"
+                        >
+                          自動買到
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="flex gap-2">
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="到貨數量"
+                        className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        value={arrivalInputs[productId] === undefined ? '' : arrivalInputs[productId]}
+                        onChange={e => setArrivalInputs({...arrivalInputs, [productId]: parseInt(e.target.value)})}
+                      />
+                      <button 
+                        onClick={() => handleAutoArriveProduct(productId, arrivalInputs[productId] || 0)}
+                        disabled={!arrivalInputs[productId] && arrivalInputs[productId] !== 0}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg disabled:opacity-50"
+                      >
+                        分配
+                      </button>
+                      <button 
+                        onClick={() => handleArriveAllRequested(productId)}
+                        className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg"
+                      >
+                        全部到貨
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mobile Order Cards */}
+                {isExpanded && (
+                  <div className="divide-y divide-gray-50">
+                    {group.orders.map(order => {
+                      const customer = customers.find(c => c.id === order.customerId);
+                      const isFullyAllocated = order.allocatedQuantity >= order.requestedQuantity;
+                      const isArrived = (order.arrivedQuantity ?? 0) >= order.requestedQuantity && order.requestedQuantity > 0;
+
+                      return (
+                        <div 
+                          key={order.id} 
+                          className="p-4 hover:bg-gray-50 transition-colors"
+                          onClick={() => handleOpenModal(order)}
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <input 
+                                type="checkbox" 
+                                className="w-5 h-5 rounded border-gray-300 shrink-0" 
+                                checked={selectedOrderIds.has(order.id)}
+                                onChange={(e) => { e.stopPropagation(); toggleOrderSelection(order.id); }}
+                              />
+                              <div className="overflow-hidden">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-gray-900 truncate">{customer?.name || '未知'}</span>
+                                  {order.isUrgent && (
+                                    <span className="px-1 py-0.5 bg-red-100 text-red-600 text-[9px] font-bold rounded">緊急</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-gray-500 truncate mt-0.5">{order.note || '無備註'}</p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className="text-sm font-bold text-gray-900">${order.subtotal.toLocaleString()}</div>
+                              <div className="text-[10px] text-gray-400">{order.requestedQuantity} × {group.product?.price || 0}</div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div className="bg-gray-50 p-2 rounded-lg">
+                              <div className="text-[10px] text-gray-400 mb-1">到貨數量</div>
+                              {viewMode === 'product' ? (
+                                <input 
+                                  type="number" 
+                                  min="0"
+                                  max={order.requestedQuantity}
+                                  value={order.arrivedQuantity || 0}
+                                  onChange={(e) => { e.stopPropagation(); handleArrive(order.id, Math.max(0, parseInt(e.target.value) || 0)); }}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-full px-2 py-1 border border-gray-200 rounded text-center text-sm font-bold focus:ring-1 focus:ring-blue-500"
+                                />
+                              ) : (
+                                <div className="font-bold text-sm flex items-center gap-1">
+                                  {order.arrivedQuantity || 0} / {order.requestedQuantity}
+                                  {isArrived && <Check size={14} className="text-green-600" />}
+                                </div>
+                              )}
+                            </div>
+                            <div className="bg-gray-50 p-2 rounded-lg">
+                              <div className="text-[10px] text-gray-400 mb-1">配貨數量</div>
+                              {viewMode === 'product' ? (
+                                <input 
+                                  type="number" 
+                                  min="0"
+                                  max={order.requestedQuantity}
+                                  value={order.allocatedQuantity}
+                                  onChange={(e) => { e.stopPropagation(); handleAllocate(order.id, Math.max(0, parseInt(e.target.value) || 0)); }}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-full px-2 py-1 border border-gray-200 rounded text-center text-sm font-bold focus:ring-1 focus:ring-blue-500"
+                                />
+                              ) : (
+                                <div className="font-bold text-sm flex items-center gap-1">
+                                  {order.allocatedQuantity} / {order.requestedQuantity}
+                                  {isFullyAllocated && <Check size={14} className="text-blue-600" />}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-50">
+                            <div className="flex gap-3">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleToggleStatus(order.id, 'isBilled'); }}
+                                className="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-50 hover:bg-gray-100 transition-colors"
+                              >
+                                <span className={`w-2.5 h-2.5 rounded-full ${order.isBilled ? 'bg-purple-500' : 'bg-gray-200'}`}></span>
+                                <span className="text-[11px] font-bold text-gray-600">結單</span>
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleToggleStatus(order.id, 'isPaid'); }}
+                                className="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-50 hover:bg-gray-100 transition-colors"
+                              >
+                                <span className={`w-2.5 h-2.5 rounded-full ${order.isPaid ? 'bg-emerald-500' : 'bg-gray-200'}`}></span>
+                                <span className="text-[11px] font-bold text-gray-600">收款</span>
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleToggleStatus(order.id, 'isShipped'); }}
+                                className="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-50 hover:bg-gray-100 transition-colors"
+                              >
+                                <span className={`w-2.5 h-2.5 rounded-full ${order.isShipped ? 'bg-orange-500' : 'bg-gray-200'}`}></span>
+                                <span className="text-[11px] font-bold text-gray-600">寄出</span>
+                              </button>
+                            </div>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleOpenModal(order); }}
+                              className="text-blue-600 text-xs font-bold"
+                            >
+                              詳細編輯
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
           {filteredOrders.length === 0 && (
-            <div className="p-8 text-center opacity-60">
-              找不到訂單。
+            <div className="p-10 text-center text-gray-400 text-sm bg-white">
+              尚無訂單記錄
             </div>
           )}
         </div>

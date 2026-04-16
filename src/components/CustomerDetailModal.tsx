@@ -121,7 +121,24 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
     }
   }, [customerOrders, activeTab]);
 
-  const handleUpdateOrder = (orderId: string, updates: Partial<Order>) => {
+  const handleUpdateOrderWithValidation = (orderId: string, updates: Partial<Order>) => {
+    if (updates.allocatedQuantity !== undefined) {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const product = products.find(p => p.id === order.productId);
+      const otherOrdersAllocated = orders
+        .filter(o => o.productId === order.productId && o.id !== orderId)
+        .reduce((sum, o) => sum + o.allocatedQuantity, 0);
+      
+      const totalPurchased = product?.purchaseQuantity || 0;
+      const maxPossible = totalPurchased - otherOrdersAllocated;
+
+      if (updates.allocatedQuantity > maxPossible && updates.allocatedQuantity > order.allocatedQuantity) {
+        showAlert("庫存不足", `目前「${product?.name}」實際已採購數量為 ${totalPurchased}，扣除其他訂單已配貨量，此訂單最多隻能配貨 ${Math.max(0, maxPossible)} 個。`);
+        return;
+      }
+    }
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates, updatedAt: Date.now() } : o));
   };
 
@@ -223,9 +240,10 @@ ${notificationTemplate}`;
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <div>
-            {isEditingName ? (
+        <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 gap-4">
+          <div className="w-full">
+            <div className="flex justify-between w-full md:w-auto">
+              {isEditingName ? (
               <div className="flex items-center gap-2">
                 <input
                   type="text"
@@ -244,17 +262,21 @@ ${notificationTemplate}`;
             ) : (
               <div className="flex items-center gap-2 group">
                 <h3 className="text-2xl font-bold text-gray-900">{customer.name} 的訂單明細</h3>
-                <button onClick={() => setIsEditingName(true)} className="p-1.5 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-100 rounded-lg transition-all" title="編輯顧客名稱">
+                <button onClick={() => setIsEditingName(true)} className="p-1.5 text-gray-400 md:opacity-0 md:group-hover:opacity-100 hover:bg-gray-100 rounded-lg transition-all" title="編輯顧客名稱">
                   <Edit2 size={16} />
                 </button>
               </div>
             )}
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors md:hidden">
+              <X size={24} />
+            </button>
+            </div>
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className="text-sm text-gray-500">配單數代表已配到幾個，欠數代表還差幾個</span>
+              <span className="text-sm text-gray-500">配貨數代表已分配給顧客的數量，到貨數代表回國清點後的數量</span>
               <div className="flex flex-wrap gap-2 ml-2">
-                <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full">總需求: <span className="font-bold">{totalRequested}</span></span>
-                <span className="text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">總配單: <span className="font-bold">{totalAllocated}</span></span>
-                <span className="text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-full">總到貨: <span className="font-bold">{totalArrived}</span></span>
+                <span className="text-sm bg-gray-100 px-2 py-0.5 rounded-full">訂單總數: <span className="font-bold">{totalRequested}</span></span>
+                <span className="text-sm bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">已配貨: <span className="font-bold">{totalAllocated}</span></span>
+                <span className="text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded-full">已到貨: <span className="font-bold">{totalArrived}</span></span>
                 <span className="text-sm bg-red-50 text-red-700 px-2 py-0.5 rounded-full">未收金額: <span className="font-bold">${unpaidAmount.toLocaleString()}</span></span>
                 {canShip && !isAllShipped && (
                   <span className="text-sm bg-green-500 text-white px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
@@ -284,11 +306,11 @@ ${notificationTemplate}`;
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex overflow-x-auto hide-scrollbar snap-x pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:pb-0 md:overflow-visible items-center gap-2 md:gap-4 shrink-0 w-full md:w-auto">
             <button 
               onClick={handleBillSelected} 
               disabled={selectedOrders.size === 0}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-colors ${
+              className={`flex shrink-0 snap-start items-center gap-2 px-4 py-2 rounded-lg font-bold transition-colors whitespace-nowrap ${
                 selectedOrders.size > 0 
                   ? 'bg-blue-600 text-white hover:bg-blue-700' 
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -296,14 +318,14 @@ ${notificationTemplate}`;
             >
               <Check size={18} /> 結單 ({selectedOrders.size})
             </button>
-            <button onClick={handleCopy} className="btn-secondary flex items-center gap-2">
+            <button onClick={handleCopy} className="btn-secondary flex shrink-0 snap-start items-center gap-2 whitespace-nowrap">
               {copied ? <Check size={18} /> : <Copy size={18} />}
               {copied ? '已複製' : '複製'}
             </button>
-            <button onClick={() => setIsAddOrderModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <button onClick={() => setIsAddOrderModalOpen(true)} className="btn-primary flex shrink-0 snap-start items-center gap-2 whitespace-nowrap">
               <Plus size={18} /> 新增訂單
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors hidden md:block shrink-0">
               <X size={24} />
             </button>
           </div>
@@ -326,7 +348,7 @@ ${notificationTemplate}`;
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse table-fixed">
               <thead>
                 <tr className="bg-gray-50/50 text-[11px] font-bold uppercase letter-spacing-0.05em text-gray-400 border-b border-gray-200">
@@ -339,10 +361,10 @@ ${notificationTemplate}`;
                     />
                   </th>
                   <th className="p-3 w-[30%]">商品名稱</th>
-                  <th className="p-3 w-[15%] text-center">明細</th>
+                  <th className="p-3 w-[15%] text-center">訂單總數</th>
                   <th className="p-3 w-[15%] text-right">金額</th>
-                  <th className="p-3 w-12 text-center">到貨</th>
-                  <th className="p-3 w-12 text-center">配單</th>
+                  <th className="p-3 w-16 text-center">到貨</th>
+                  <th className="p-3 w-16 text-center">配貨</th>
                   <th className="p-3 w-12 text-center">結單</th>
                   <th className="p-3 w-12 text-center">收款</th>
                   <th className="p-3 w-12 text-center">寄出</th>
@@ -384,14 +406,28 @@ ${notificationTemplate}`;
                         {order.subtotal.toLocaleString()}
                       </td>
                       <td className="p-3 text-center">
-                        {isArrived ? <span className="text-green-600 text-xs">●</span> : <span className="text-gray-200 text-[10px]">○</span>}
+                        <input 
+                          type="number" 
+                          min="0"
+                          max={order.requestedQuantity}
+                          value={order.arrivedQuantity || 0}
+                          onChange={(e) => handleUpdateOrderWithValidation(order.id, { arrivedQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                          className="w-12 px-1 py-0.5 border border-gray-200 rounded text-center text-[10px] focus:ring-1 focus:ring-blue-500"
+                        />
                       </td>
                       <td className="p-3 text-center">
-                        {isFullyAllocated ? <span className="text-blue-600 text-xs">●</span> : <span className="text-gray-200 text-[10px]">○</span>}
+                        <input 
+                          type="number" 
+                          min="0"
+                          max={order.requestedQuantity}
+                          value={order.allocatedQuantity}
+                          onChange={(e) => handleUpdateOrderWithValidation(order.id, { allocatedQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                          className="w-12 px-1 py-0.5 border border-gray-200 rounded text-center text-[10px] focus:ring-1 focus:ring-blue-500"
+                        />
                       </td>
                       <td className="p-3 text-center">
                         <button 
-                          onClick={() => handleUpdateOrder(order.id, { isBilled: !order.isBilled })}
+                          onClick={() => handleUpdateOrderWithValidation(order.id, { isBilled: !order.isBilled })}
                           className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${order.isBilled ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                         >
                           <Check size={12} />
@@ -399,7 +435,7 @@ ${notificationTemplate}`;
                       </td>
                       <td className="p-3 text-center">
                         <button 
-                          onClick={() => handleUpdateOrder(order.id, { isPaid: !order.isPaid })}
+                          onClick={() => handleUpdateOrderWithValidation(order.id, { isPaid: !order.isPaid })}
                           className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${order.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                         >
                           <Check size={12} />
@@ -407,7 +443,7 @@ ${notificationTemplate}`;
                       </td>
                       <td className="p-3 text-center">
                         <button 
-                          onClick={() => handleUpdateOrder(order.id, { isShipped: !order.isShipped })}
+                          onClick={() => handleUpdateOrderWithValidation(order.id, { isShipped: !order.isShipped })}
                           className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${order.isShipped ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                         >
                           <Truck size={12} />
@@ -430,6 +466,107 @@ ${notificationTemplate}`;
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {displayedOrders.map(order => {
+              const product = products.find(p => p.id === order.productId);
+              if (!product) return null;
+              
+              return (
+                <div key={order.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 rounded border-gray-300" 
+                        checked={selectedOrders.has(order.id)}
+                        onChange={() => handleToggleSelectOrder(order.id)}
+                      />
+                      <div>
+                        <div className="font-bold text-sm text-gray-900 flex items-center gap-2">
+                          {product.name}
+                          {order.isUrgent && (
+                            <span className="px-1 py-0.5 bg-red-100 text-red-600 text-[9px] font-bold rounded uppercase">緊急</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-400">{product.variant || '-'}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-sm">${order.subtotal.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-400">{order.requestedQuantity} × {product.price}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white p-2 rounded-lg border border-gray-100">
+                      <div className="text-[10px] text-gray-400 mb-1">到貨數量</div>
+                      <input 
+                        type="number" 
+                        min="0"
+                        max={order.requestedQuantity}
+                        value={order.arrivedQuantity || 0}
+                        onChange={(e) => handleUpdateOrderWithValidation(order.id, { arrivedQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-full px-2 py-1 border border-gray-200 rounded text-center text-sm font-bold focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-gray-100">
+                      <div className="text-[10px] text-gray-400 mb-1">配貨數量</div>
+                      <input 
+                        type="number" 
+                        min="0"
+                        max={order.requestedQuantity}
+                        value={order.allocatedQuantity}
+                        onChange={(e) => handleUpdateOrderWithValidation(order.id, { allocatedQuantity: Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-full px-2 py-1 border border-gray-200 rounded text-center text-sm font-bold focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                    <div className="flex gap-4">
+                      <button 
+                        onClick={() => handleUpdateOrderWithValidation(order.id, { isBilled: !order.isBilled })}
+                        className={`flex flex-col items-center gap-1 ${order.isBilled ? 'text-purple-600' : 'text-gray-300'}`}
+                      >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${order.isBilled ? 'bg-purple-100' : 'bg-gray-100'}`}>
+                          <Check size={14} />
+                        </div>
+                        <span className="text-[9px] font-bold">結單</span>
+                      </button>
+                      <button 
+                        onClick={() => handleUpdateOrderWithValidation(order.id, { isPaid: !order.isPaid })}
+                        className={`flex flex-col items-center gap-1 ${order.isPaid ? 'text-emerald-600' : 'text-gray-300'}`}
+                      >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${order.isPaid ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                          <Check size={14} />
+                        </div>
+                        <span className="text-[9px] font-bold">收款</span>
+                      </button>
+                      <button 
+                        onClick={() => handleUpdateOrderWithValidation(order.id, { isShipped: !order.isShipped })}
+                        className={`flex flex-col items-center gap-1 ${order.isShipped ? 'text-orange-600' : 'text-gray-300'}`}
+                      >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${order.isShipped ? 'bg-orange-100' : 'bg-gray-100'}`}>
+                          <Truck size={14} />
+                        </div>
+                        <span className="text-[9px] font-bold">寄出</span>
+                      </button>
+                    </div>
+                    <button onClick={() => handleDeleteOrder(order.id)} className="p-2 text-gray-300 hover:text-red-500">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {displayedOrders.length === 0 && (
+              <div className="p-10 text-center text-gray-400 text-sm">
+                尚無訂單記錄
+              </div>
+            )}
           </div>
 
           <div className="mt-8 p-6 bg-blue-50 rounded-2xl border border-blue-100">
