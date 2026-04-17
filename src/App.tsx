@@ -59,6 +59,13 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAuthReady(true);
+      if (!currentUser) {
+        // 清理記憶體中的資料，確保切換帳號時完全淨空
+        setProducts([]);
+        setCustomers([]);
+        setOrders([]);
+        setIsInitialLoad(true);
+      }
     });
     return () => unsubscribe();
   }, []);
