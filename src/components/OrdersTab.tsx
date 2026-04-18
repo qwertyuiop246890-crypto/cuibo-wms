@@ -24,7 +24,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   const [endDate, setEndDate] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [showShipped, setShowShipped] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('unshipped');
   const [arrivalInputs, setArrivalInputs] = useState<Record<string, number>>({});
 
   // Form state
@@ -55,11 +55,23 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
       const start = startDate ? startOfDay(parseISO(startDate)) : new Date(0);
       const end = endDate ? endOfDay(parseISO(endDate)) : new Date(8640000000000000);
       const matchesDate = isWithinInterval(orderDate, { start, end });
-      const matchesShipped = showShipped ? true : !o.isShipped;
+      
+      let matchesStatus = true;
+      switch (statusFilter) {
+        case 'unshipped': matchesStatus = !o.isShipped; break;
+        case 'shipped': matchesStatus = !!o.isShipped; break;
+        case 'allocated': matchesStatus = o.allocatedQuantity >= o.requestedQuantity; break;
+        case 'unallocated': matchesStatus = o.allocatedQuantity < o.requestedQuantity; break;
+        case 'arrived': matchesStatus = (o.arrivedQuantity || 0) >= o.requestedQuantity; break;
+        case 'not_arrived': matchesStatus = (o.arrivedQuantity || 0) < o.requestedQuantity; break;
+        case 'billed': matchesStatus = !!o.isBilled; break;
+        case 'unbilled': matchesStatus = !o.isBilled; break;
+        case 'all': default: matchesStatus = true; break;
+      }
 
-      return matchesSearch && matchesDate && matchesShipped;
+      return matchesSearch && matchesDate && matchesStatus;
     }).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  }, [orders, products, customers, searchTerm, startDate, endDate, showShipped]);
+  }, [orders, products, customers, searchTerm, startDate, endDate, statusFilter]);
 
   const totalAmount = useMemo(() => {
     return filteredOrders.reduce((sum, order) => sum + order.subtotal, 0);
@@ -581,16 +593,22 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
           )}
         </div>
         <div className="flex flex-wrap lg:flex-nowrap gap-4">
-          <div className="flex flex-1 lg:flex-none items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-[var(--color-border)]">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)] px-2">
-              <input 
-                type="checkbox" 
-                checked={showShipped} 
-                onChange={(e) => setShowShipped(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500"
-              />
-              顯示已出貨
-            </label>
+          <div className="flex flex-1 lg:flex-none items-center bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full text-sm font-bold text-[var(--color-text)] bg-transparent border-none focus:ring-0 py-2 pl-3 pr-8 cursor-pointer"
+            >
+              <option value="all">所有訂單 (含已寄出)</option>
+              <option value="unshipped">未寄出 (預設)</option>
+              <option value="shipped">已寄出</option>
+              <option value="allocated">已配單</option>
+              <option value="unallocated">未配單</option>
+              <option value="arrived">已到貨</option>
+              <option value="not_arrived">未到貨</option>
+              <option value="billed">已結帳</option>
+              <option value="unbilled">未結帳</option>
+            </select>
           </div>
           <div className="flex flex-1 lg:flex-none justify-center lg:justify-start items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-[var(--color-border)]">
             <DollarSign size={18} className="text-emerald-500" />
