@@ -92,7 +92,7 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
                       <p className="text-xs text-gray-500">{item.variant || '預設'}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-orange-600 font-bold uppercase">還有幾個沒有買</p>
+                      <p className="text-xs text-orange-600 font-bold uppercase">待採購數量</p>
                       <p className="text-2xl font-black text-orange-600">{item.needsPurchase}</p>
                     </div>
                   </div>
@@ -151,19 +151,19 @@ export default function InventoryTab({ products, setProducts, orders }: Props) {
                 
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   <div className="bg-gray-50 p-2 rounded">
-                    <p className="text-[10px] text-gray-500 uppercase">客人總共要幾個</p>
+                    <p className="text-[10px] text-gray-500 uppercase">訂單總數</p>
                     <p className="text-lg font-bold">{totalRequested}</p>
                   </div>
                   <div className="bg-purple-50 p-2 rounded">
-                    <p className="text-[10px] text-purple-600 uppercase">實際上買了幾個</p>
+                    <p className="text-[10px] text-purple-600 uppercase">實際已採購數量</p>
                     <p className="text-lg font-bold text-purple-700">{product.purchaseQuantity || 0}</p>
                   </div>
                   <div className="bg-green-50 p-2 rounded">
-                    <p className="text-[10px] text-green-600 uppercase">分配完還有幾個可以賣</p>
+                    <p className="text-[10px] text-green-600 uppercase">現貨數量</p>
                     <p className="text-lg font-bold text-green-700">{(product.purchaseQuantity || 0) - totalAllocated}</p>
                   </div>
                   <div className={`p-2 rounded ${needsPurchase > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
-                    <p className="text-[10px] text-gray-500 uppercase">還有幾個沒有買</p>
+                    <p className="text-[10px] text-gray-500 uppercase">待採購數量</p>
                     <p className={`text-lg font-bold ${needsPurchase > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{needsPurchase}</p>
                   </div>
                 </div>

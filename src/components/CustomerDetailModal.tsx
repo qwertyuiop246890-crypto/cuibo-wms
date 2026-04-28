@@ -165,16 +165,23 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   const isAllShipped = customerOrders.length > 0 && customerOrders.every(o => o.isShipped);
 
   const notificationText = useMemo(() => {
-    const ordersToNotify = selectedOrders.size > 0 
+    // 依據勾選狀態或當下顯示的清單作為基礎
+    const baseOrders = selectedOrders.size > 0 
       ? customerOrders.filter(o => selectedOrders.has(o.id))
       : displayedOrders;
+    
+    // 根據使用者需求：通知文案只通知訂單明細沒有收款且有配到貨的
+    const ordersToNotify = baseOrders.filter(o => !o.isPaid && !o.isBilled && o.allocatedQuantity > 0);
 
-    const notifyTotalAmount = ordersToNotify.reduce((sum, o) => sum + o.subtotal, 0);
-
-    const orderItemsText = ordersToNotify.map(o => {
+    const notifyTotalAmount = ordersToNotify.reduce((sum, o) => {
       const product = products.find(p => p.id === o.productId);
-      return `${product?.name || '未知商品'} ${product?.variant ? `(${product.variant})` : ''} x ${o.requestedQuantity} $${product?.price || 0}`;
-    }).join('\n');
+      return sum + (product ? calculateSubtotal(product, o.allocatedQuantity) : 0);
+    }, 0);
+
+    const orderItemsText = ordersToNotify.length > 0 ? ordersToNotify.map(o => {
+      const product = products.find(p => p.id === o.productId);
+      return `${product?.name || '未知商品'} ${product?.variant ? `(${product.variant})` : ''} x ${o.allocatedQuantity} $${product?.price || 0}`;
+    }).join('\n') : '(目前無未結單/未收款且有配到貨的明細)';
 
     return `親愛的 ${customer.name} 您好，
 您本次的連線購物明細如下：
@@ -184,7 +191,7 @@ ${orderItemsText}
 消費總額：$${notifyTotalAmount.toLocaleString()}
 
 ${notificationTemplate}`;
-  }, [customer.name, customerOrders, products, notificationTemplate, selectedOrders]);
+  }, [customer.name, customerOrders, products, notificationTemplate, selectedOrders, displayedOrders]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(notificationText).then(() => {
@@ -388,9 +395,9 @@ ${notificationTemplate}`;
                           onChange={() => handleToggleSelectOrder(order.id)}
                         />
                       </td>
-                      <td className="p-3">
+                      <td className={`p-3 ${order.allocatedQuantity === 0 ? 'opacity-40 grayscale' : ''}`}>
                         <div className="overflow-hidden">
-                          <div className="font-medium text-sm text-gray-900 flex items-center gap-2 truncate">
+                          <div className={`font-medium text-sm text-gray-900 flex items-center gap-2 truncate ${order.allocatedQuantity === 0 ? 'line-through text-gray-500' : ''}`}>
                             {product.name}
                             {order.isUrgent && (
                               <span className="shrink-0 px-1 py-0.5 bg-red-100 text-red-600 text-[9px] font-bold rounded uppercase">緊急</span>
@@ -399,10 +406,10 @@ ${notificationTemplate}`;
                           <div className="text-[10px] text-gray-400 mt-0.5 truncate">{product.variant || '-'}</div>
                         </div>
                       </td>
-                      <td className="p-3 text-center text-[11px] font-mono text-gray-400">
+                      <td className={`p-3 text-center text-[11px] font-mono text-gray-400 ${order.allocatedQuantity === 0 ? 'opacity-40 line-through' : ''}`}>
                         {order.requestedQuantity} × {product.price}
                       </td>
-                      <td className="p-3 text-right font-mono text-sm font-medium text-gray-900">
+                      <td className={`p-3 text-right font-mono text-sm font-medium text-gray-900 ${order.allocatedQuantity === 0 ? 'opacity-40 line-through text-gray-500' : ''}`}>
                         {order.subtotal.toLocaleString()}
                       </td>
                       <td className="p-3 text-center">
