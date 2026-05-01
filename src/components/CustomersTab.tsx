@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck, BadgeDollarSign, Truck } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, Copy, CheckCircle, PackageCheck, BadgeDollarSign, Truck, Printer } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { v4 as uuidv4 } from 'uuid';
 import { Customer, Order, Product } from '../types';
@@ -21,7 +21,7 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
   const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'amount' | 'name'>('amount');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'allocated' | 'arrived'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'partially_allocated' | 'all_allocated' | 'arrived'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -33,13 +33,14 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
 
   const getCustomerStatus = (customerId: string) => {
     const customerOrders = orders.filter(o => o.customerId === customerId);
-    if (customerOrders.length === 0) return { allAllocated: false, allArrived: false, isAllShipped: false };
+    if (customerOrders.length === 0) return { someAllocated: false, allAllocated: false, allArrived: false, isAllShipped: false };
 
+    const someAllocated = customerOrders.some(o => o.allocatedQuantity > 0);
     const allAllocated = customerOrders.every(o => o.allocatedQuantity >= o.requestedQuantity);
     const allArrived = customerOrders.every(o => (o.arrivedQuantity ?? 0) >= o.requestedQuantity);
-    const isAllShipped = customerOrders.every(o => o.isShipped);
+    const isAllShipped = customerOrders.length > 0 && customerOrders.every(o => o.isShipped);
 
-    return { allAllocated, allArrived, isAllShipped };
+    return { someAllocated, allAllocated, allArrived, isAllShipped };
   };
 
   const filteredCustomers = useMemo(() => {
@@ -47,13 +48,21 @@ export default function CustomersTab({ customers, setCustomers, orders, setOrder
       c.name.replace(/\s+/g, '').toLowerCase().includes(searchTerm.replace(/\s+/g, '').toLowerCase())
     );
 
-    if (filterStatus === 'allocated') {
+    if (filterStatus === 'partially_allocated') {
       result = result.filter(c => {
         const status = getCustomerStatus(c.id);
-        return status.allAllocated && !status.allArrived;
+        return status.someAllocated && !status.allAllocated && !status.isAllShipped;
+      });
+    } else if (filterStatus === 'all_allocated') {
+      result = result.filter(c => {
+        const status = getCustomerStatus(c.id);
+        return status.allAllocated && !status.allArrived && !status.isAllShipped;
       });
     } else if (filterStatus === 'arrived') {
-      result = result.filter(c => getCustomerStatus(c.id).allArrived);
+      result = result.filter(c => {
+        const status = getCustomerStatus(c.id);
+        return status.allArrived && !status.isAllShipped;
+      });
     }
 
     if (sortBy === 'amount') {
@@ -205,16 +214,21 @@ ${notificationTemplate}`;
     });
   };
 
+  const handlePrintSelected = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center no-print">
         <h2 className="text-2xl font-bold">顧客管理</h2>
         <div className="flex gap-2">
           {selectedCustomerIds.size > 0 && (
-            <div className="flex gap-2 mr-4">
+            <div className="flex gap-2 mr-4 flex-wrap">
               <button onClick={() => handleBulkAction('bill')} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors">結單</button>
               <button onClick={() => handleBulkAction('pay')} className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">收款</button>
               <button onClick={() => handleBulkAction('ship')} className="px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-sm font-bold hover:bg-orange-100 transition-colors">寄出</button>
+              <button onClick={() => handlePrintSelected()} className="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-sm font-bold hover:bg-purple-100 transition-colors flex items-center gap-1"><Printer size={16}/>列印出貨單</button>
               <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors">刪除</button>
             </div>
           )}
@@ -224,7 +238,7 @@ ${notificationTemplate}`;
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4 no-print">
         <div className="relative flex-1">
           <input 
             type="text" 
@@ -242,7 +256,8 @@ ${notificationTemplate}`;
             className="p-1 text-sm border-none focus:ring-0 text-[var(--color-text)] bg-transparent outline-none"
           >
             <option value="all">全部</option>
-            <option value="allocated">全部已配單</option>
+            <option value="partially_allocated">部分已配單</option>
+            <option value="all_allocated">全部已配單</option>
             <option value="arrived">可出貨</option>
           </select>
         </div>
@@ -259,7 +274,7 @@ ${notificationTemplate}`;
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden no-print">
         {/* Desktop Table View */}
         <div className="hidden md:block">
           <table className="w-full text-left border-collapse table-fixed">
@@ -331,7 +346,12 @@ ${notificationTemplate}`;
                         )}
                         {!allArrived && allAllocated && !isAllShipped && (
                           <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-bold rounded uppercase flex items-center gap-1">
-                            <CheckCircle size={10} /> 已配單
+                            <CheckCircle size={10} /> 全部已配單
+                          </span>
+                        )}
+                        {!allArrived && !allAllocated && customerOrders.some(o => o.allocatedQuantity > 0) && !isAllShipped && (
+                          <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-bold rounded uppercase flex items-center gap-1">
+                            <CheckCircle size={10} /> 部分已配單
                           </span>
                         )}
                         {isAllShipped && customerOrders.length > 0 && (
@@ -400,6 +420,11 @@ ${notificationTemplate}`;
                     <CheckCircle size={12} /> 全部已配單
                   </div>
                 )}
+                {!allArrived && !allAllocated && customerOrders.some(o => o.allocatedQuantity > 0) && !isAllShipped && (
+                  <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1">
+                    <CheckCircle size={12} /> 部分已配單
+                  </div>
+                )}
                 
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
@@ -453,6 +478,94 @@ ${notificationTemplate}`;
             </div>
           )}
         </div>
+      </div>
+
+      {/* Print Only Container for Selected Customers */}
+      <div className="hidden print:block receipt-container">
+        {customers
+          .filter(c => selectedCustomerIds.has(c.id))
+          .map(customer => {
+            const customerOrders = orders.filter(o => o.customerId === customer.id && !o.isShipped);
+            if (customerOrders.length === 0) return null;
+            
+            const ordersWithRecalculatedSubtotal = customerOrders.map(order => {
+              const product = products.find(p => p.id === order.productId);
+              if (!product) return { ...order, recalculatedSubtotal: 0 };
+              return { 
+                ...order, 
+                recalculatedSubtotal: calculateSubtotal(product, order.allocatedQuantity) 
+              };
+            });
+
+            const totalAmount = ordersWithRecalculatedSubtotal.reduce((sum, order) => sum + order.recalculatedSubtotal, 0);
+
+            return (
+              <div key={customer.id} className="receipt-item p-6 mb-6 bg-white shrink-0 page-break-after-always" style={{ pageBreakAfter: 'always' }}>
+                <table className="w-full text-left border-collapse table-fixed">
+                  <thead>
+                    <tr>
+                      <th colSpan={6} className="font-normal pb-4">
+                        <div className="text-center mb-2">
+                          <p className="text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
+                          <h3 className="text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
+                          <div className="flex justify-between text-sm text-gray-400 mb-2 px-2">
+                            <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
+                            <span>顧客：{customer.name}</span>
+                          </div>
+                          <div className="border-b-2 border-solid border-[#8B7355]"></div>
+                        </div>
+                      </th>
+                    </tr>
+                    <tr className="border-b border-solid border-gray-200 text-base text-gray-800 font-bold">
+                      <th className="w-16 py-3 text-center"></th>
+                      <th className="w-[30%] py-3">商品名稱</th>
+                      <th className="w-[20%] py-3">款式</th>
+                      <th className="w-[15%] py-3">單價</th>
+                      <th className="w-[10%] py-3 text-center">數量</th>
+                      <th className="w-[15%] py-3 text-right">小計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordersWithRecalculatedSubtotal.map(order => {
+                      const product = products.find(p => p.id === order.productId);
+                      if (!product || order.allocatedQuantity === 0) return null;
+
+                      const unitPrice = order.recalculatedSubtotal / order.allocatedQuantity;
+                      const orderDate = formatInTimeZone(order.createdAt || Date.now(), 'Asia/Taipei', 'M/dd HH:mm');
+
+                      return (
+                        <tr key={order.id} className="border-b border-solid border-gray-100 last:border-0 border-b-solid">
+                          <td className="py-4 align-middle text-center">
+                            <div className="inline-block w-6 h-6 border-2 border-solid border-gray-800 rounded-md"></div>
+                          </td>
+                          <td className="py-4 pr-2 align-middle">
+                            <div className="font-medium text-gray-800 text-base">{product.name}</div>
+                            <div className="text-xs text-gray-400 mt-1">{orderDate}</div>
+                          </td>
+                          <td className="py-4 text-gray-600 pr-2 align-middle text-base">
+                            {product.variant || '-'}
+                          </td>
+                          <td className="py-4 text-gray-800 align-middle text-base">
+                            NT${unitPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="py-4 text-center text-gray-800 align-middle text-base">
+                            {order.allocatedQuantity}
+                          </td>
+                          <td className="py-4 text-right font-bold text-gray-800 align-middle text-base">
+                            NT${order.recalculatedSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex justify-end items-center text-base font-bold text-gray-800 mt-4 mb-8">
+                  <span className="mr-4">總計金額：</span>
+                  <span className="text-2xl text-[#8B7355]">NT${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+            );
+          })}
       </div>
 
       {/* Modal */}

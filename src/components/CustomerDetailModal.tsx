@@ -115,9 +115,9 @@ export default function CustomerDetailModal({ customer, orders, setOrders, produ
   
   const displayedOrders = useMemo(() => {
     if (activeTab === 'pending') {
-      return customerOrders.filter(o => !o.isBilled);
+      return customerOrders.filter(o => !o.isShipped); // Orders that are not shipped yet stay here
     } else {
-      return customerOrders.filter(o => o.isBilled);
+      return customerOrders.filter(o => o.isShipped);  // Orders shipped go to history
     }
   }, [customerOrders, activeTab]);
 
@@ -345,13 +345,13 @@ ${notificationTemplate}`;
               onClick={() => { setActiveTab('pending'); setSelectedOrders(new Set()); }}
               className={`px-6 py-2 font-bold transition-colors border-b-2 ${activeTab === 'pending' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
             >
-              訂單明細 ({customerOrders.filter(o => !o.isBilled).length})
+              訂單明細 ({customerOrders.filter(o => !o.isShipped).length})
             </button>
             <button 
               onClick={() => { setActiveTab('billed'); setSelectedOrders(new Set()); }}
               className={`px-6 py-2 font-bold transition-colors border-b-2 ${activeTab === 'billed' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
             >
-              結帳記錄 ({customerOrders.filter(o => o.isBilled).length})
+              出貨 / 歷史紀錄 ({customerOrders.filter(o => o.isShipped).length})
             </button>
           </div>
 
