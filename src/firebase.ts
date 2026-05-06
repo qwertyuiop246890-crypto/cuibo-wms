@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence, signInWithPopup, onAuthStateChanged, User, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer, collection, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 
 // Import the Firebase configuration
@@ -10,6 +10,9 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error('Failed to set auth persistence', error);
+});
 
 // Error Handling
 export enum OperationType {
@@ -59,8 +62,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error('Firestore Error: ', {
+    error: errInfo.error,
+    operationType: errInfo.operationType,
+    path: errInfo.path
+  });
 }
 
 // Connection test

@@ -168,6 +168,11 @@ ${notificationTemplate}`;
         o.requestedQuantity > o.allocatedQuantity || o.requestedQuantity > (o.arrivedQuantity || 0)
       );
 
+      if (hasIncompleteOrders) {
+        showAlert('Not ready to ship', 'This customer still has unallocated or not-yet-arrived items. Use the receipts page partial-shipping action if you need to ship only ready items.');
+        return;
+      }
+
       const confirmMessage = hasIncompleteOrders 
         ? `⚠️ 注意：${customerName} 還有部分商品尚未完全配單或到貨！\n\n確定要強制將所有訂單標記為已出貨嗎？`
         : `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`;

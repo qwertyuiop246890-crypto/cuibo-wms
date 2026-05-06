@@ -366,6 +366,7 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
   const handleAllocate = (orderId: string, allocatedQty: number) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
+    const safeAllocatedQty = Math.min(Math.max(0, allocatedQty), order.requestedQuantity);
 
     const product = products.find(p => p.id === order.productId);
     const otherOrdersAllocated = orders
@@ -375,25 +376,32 @@ export default function OrdersTab({ orders, setOrders, products, setProducts, cu
     const totalPurchased = product?.purchaseQuantity || 0;
     const maxPossible = totalPurchased - otherOrdersAllocated;
 
-    if (allocatedQty > maxPossible && allocatedQty > order.allocatedQuantity) {
+    if (safeAllocatedQty > maxPossible && safeAllocatedQty > order.allocatedQuantity) {
       showAlert("庫存不足", `目前「${product?.name}」實際已採購數量為 ${totalPurchased}，扣除其他訂單已配貨量，此訂單最多隻能配貨 ${Math.max(0, maxPossible)} 個。`);
       return;
     }
 
     setOrders(prev => prev.map(o => 
-      o.id === orderId ? { ...o, allocatedQuantity: allocatedQty, updatedAt: Date.now() } : o
+      o.id === orderId ? { ...o, allocatedQuantity: safeAllocatedQty, updatedAt: Date.now() } : o
     ));
   };
 
   const handleArrive = (orderId: string, arrivedQty: number) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const safeArrivedQty = Math.min(Math.max(0, arrivedQty), order.requestedQuantity);
     setOrders(prev => prev.map(o => 
-      o.id === orderId ? { ...o, arrivedQuantity: arrivedQty, updatedAt: Date.now() } : o
+      o.id === orderId ? { ...o, arrivedQuantity: safeArrivedQty, updatedAt: Date.now() } : o
     ));
   };
 
   const handleToggleStatus = (orderId: string, field: 'isBilled' | 'isPaid' | 'isShipped') => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
+    if (field === 'isShipped' && !order.isShipped && (order.allocatedQuantity < order.requestedQuantity || (order.arrivedQuantity || 0) < order.requestedQuantity)) {
+      showAlert('Not ready to ship', 'This order must be fully allocated and arrived before it can be marked shipped.');
+      return;
+    }
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, [field]: !order[field], updatedAt: Date.now() } : o));
   };
 

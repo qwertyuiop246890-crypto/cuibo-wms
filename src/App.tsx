@@ -12,7 +12,7 @@ import ReceiptsTab from './components/ReceiptsTab';
 import SettingsTab from './components/SettingsTab';
 import { useDialog } from './hooks/useDialog';
 import CustomDialog from './components/CustomDialog';
-import { auth, db, googleProvider, signInWithPopup, onAuthStateChanged, User, handleFirestoreError, OperationType, signInWithRedirect, getRedirectResult } from './firebase';
+import { auth, authPersistenceReady, db, googleProvider, signInWithPopup, onAuthStateChanged, User, handleFirestoreError, OperationType, signInWithRedirect, getRedirectResult } from './firebase';
 import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query, orderBy, getDocs } from 'firebase/firestore';
 import { calculateSubtotal } from './lib/priceUtils';
 
@@ -23,6 +23,8 @@ export default function App() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // State
   const [products, setProducts] = useState<Product[]>([]);
@@ -49,47 +51,69 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
-    // 處理重新導向回來的結果
-    getRedirectResult(auth).catch((error: any) => {
-      if (error.code !== 'auth/no-current-user') {
-        console.error("重新導向登入失敗", error);
+    const authReadyFallback = window.setTimeout(() => {
+      setIsAuthReady(true);
+    }, 8000);
+
+    authPersistenceReady
+      .then(() => getRedirectResult(auth))
+      .then((result) => {
+        if (result?.user) {
+          setUser(result.user);
+          setAuthError(null);
+          setIsAuthReady(true);
+        }
+      })
+      .catch((error: any) => {
+      if (error?.code !== 'auth/no-current-user') {
+        console.error('Login redirect failed', error);
+        setAuthError(`${error?.code || 'auth/unknown'}: ${error?.message || String(error)}`);
       }
     });
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      window.clearTimeout(authReadyFallback);
       setUser(currentUser);
+      setAuthError(null);
       setIsAuthReady(true);
       if (!currentUser) {
-        // 清理記憶體中的資料，確保切換帳號時完全淨空
         setProducts([]);
         setCustomers([]);
         setOrders([]);
         setIsInitialLoad(true);
       }
+    }, (error) => {
+      window.clearTimeout(authReadyFallback);
+      console.error('Auth listener failed', error);
+      setAuthError(error.message);
+      setIsAuthReady(true);
     });
-    return () => unsubscribe();
+    return () => {
+      window.clearTimeout(authReadyFallback);
+      unsubscribe();
+    };
   }, []);
 
   const handleLogin = async () => {
     try {
-      // 優先嘗試彈出視窗
-      await signInWithPopup(auth, googleProvider);
+      setAuthError(null);
+      setIsLoggingIn(true);
+      void authPersistenceReady;
+      const redirectFallback = window.setTimeout(() => {
+        setIsLoggingIn(false);
+        setAuthError('auth/redirect-not-started: Firebase did not navigate to Google. This preview browser may be blocking Firebase redirects.');
+      }, 5000);
+      await signInWithRedirect(auth, googleProvider);
+      window.clearTimeout(redirectFallback);
     } catch (error: any) {
-      console.error("登入失敗", error);
-      
-      // 如果視窗被攔截或網域有問題，嘗試使用重新導向模式
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/unauthorized-domain' || error.code === 'auth/popup-closed-by-user') {
-        try {
-          await signInWithRedirect(auth, googleProvider);
-        } catch (redirectError: any) {
-          showAlert('登入失敗', `無法完成登入: ${redirectError.message}`);
-        }
-      } else {
-        showAlert('登入失敗', `錯誤代碼: ${error.code}\n訊息: ${error.message}`);
-      }
+      console.error('Login failed', error);
+      const message = (error?.code || 'auth/unknown') + ': ' + (error?.message || String(error));
+      setAuthError(message);
+      showAlert('Login failed', message);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
-
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -430,9 +454,9 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const parsed = JSON.parse(e.target?.result as string);
-        if (parsed.products) setProducts(parsed.products);
-        if (parsed.customers) setCustomers(parsed.customers);
-        if (parsed.orders) setOrders(parsed.orders);
+        if (Array.isArray(parsed.products)) setProductsWithSync(parsed.products);
+        if (Array.isArray(parsed.customers)) setCustomersWithSync(parsed.customers);
+        if (Array.isArray(parsed.orders)) setOrdersWithSync(parsed.orders);
         showAlert('成功', '備份匯入成功！');
       } catch (error) {
         showAlert('錯誤', '無效的備份檔案');
@@ -514,11 +538,18 @@ export default function App() {
           </div>
           <button
             onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-[var(--color-primary)] text-white py-3 px-6 rounded-xl font-bold hover:opacity-90 transition-opacity"
+            disabled={isLoggingIn}
+            className="w-full flex items-center justify-center gap-3 bg-[var(--color-primary)] text-white py-3 px-6 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            <LogIn size={20} />
-            使用 Google 帳號登入
+            {isLoggingIn ? <RefreshCw size={20} className="animate-spin" /> : <LogIn size={20} />}
+            {isLoggingIn ? 'Redirecting to Google...' : 'Sign in with Google'}
           </button>
+          {authError && (
+            <div className="w-full text-left text-xs bg-red-50 text-red-700 border border-red-100 rounded-xl p-3 break-words">
+              <div className="font-bold mb-1">Login error</div>
+              {authError}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -624,6 +655,7 @@ export default function App() {
         <MobileTabButton active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} icon={<Package size={20} />} label="庫存" />
         <MobileTabButton active={activeTab === 'products'} onClick={() => setActiveTab('products')} icon={<Package size={20} />} label="商品" />
         <MobileTabButton active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} icon={<Users size={20} />} label="顧客" />
+        <MobileTabButton active={activeTab === 'receipts'} onClick={() => setActiveTab('receipts')} icon={<Printer size={20} />} label="收據" />
         <MobileTabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings size={20} />} label="設定" />
       </nav>
 

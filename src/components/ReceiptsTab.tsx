@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Printer, Download, Search, CheckCircle, Truck, PackageCheck, Scissors } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { Printer, Download, Truck, PackageCheck, Scissors } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { formatInTimeZone } from 'date-fns-tz';
 import { v4 as uuidv4 } from 'uuid';
@@ -15,27 +15,56 @@ interface Props {
   notificationTemplate: string;
 }
 
-export default function ReceiptsTab({ orders, setOrders, products, customers, notificationTemplate }: Props) {
+type ReceiptFilter = 'unshipped' | 'ready' | 'shipped' | 'all';
+
+function isReadyToShip(orders: Order[]) {
+  const activeOrders = orders.filter(order => !order.isShipped);
+  return activeOrders.length > 0 && activeOrders.every(order => {
+    const allocated = order.allocatedQuantity || 0;
+    const arrived = order.arrivedQuantity || 0;
+    return allocated >= order.requestedQuantity && arrived >= order.requestedQuantity;
+  });
+}
+
+function getShippableQuantity(order: Order) {
+  return Math.min(order.requestedQuantity, order.allocatedQuantity || 0, order.arrivedQuantity || 0);
+}
+
+export default function ReceiptsTab({ orders, setOrders, products, customers }: Props) {
   const { showAlert, showConfirm } = useDialog();
   const [searchTerm, setSearchTerm] = useState('');
-  const [showShipped, setShowShipped] = useState(false);
+  const [receiptFilter, setReceiptFilter] = useState<ReceiptFilter>('unshipped');
   const receiptRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // Group orders by customer
-  const ordersByCustomer = orders.reduce((acc, order) => {
-    if (!showShipped && order.isShipped) return acc;
-    if (!acc[order.customerId]) {
-      acc[order.customerId] = [];
-    }
-    acc[order.customerId].push(order);
-    return acc;
-  }, {} as Record<string, Order[]>);
+  const customerReceiptRows = useMemo(() => {
+    const normalizedSearch = searchTerm.replace(/\s+/g, '').toLowerCase();
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.replace(/\s+/g, '').toLowerCase().includes(searchTerm.replace(/\s+/g, '').toLowerCase()) && 
-    ordersByCustomer[c.id] && 
-    ordersByCustomer[c.id].length > 0
-  );
+    return customers
+      .map(customer => {
+        const customerOrders = orders.filter(order => order.customerId === customer.id);
+        const unshippedOrders = customerOrders.filter(order => !order.isShipped);
+        const shippedOrders = customerOrders.filter(order => order.isShipped);
+        const ready = isReadyToShip(customerOrders);
+        const allShipped = customerOrders.length > 0 && customerOrders.every(order => order.isShipped);
+
+        let visibleOrders = unshippedOrders;
+        if (receiptFilter === 'ready') visibleOrders = ready ? unshippedOrders : [];
+        if (receiptFilter === 'shipped') visibleOrders = shippedOrders;
+        if (receiptFilter === 'all') visibleOrders = customerOrders;
+
+        return {
+          customer,
+          allOrders: customerOrders,
+          visibleOrders,
+          ready,
+          allShipped,
+        };
+      })
+      .filter(row => {
+        const matchesSearch = row.customer.name.replace(/\s+/g, '').toLowerCase().includes(normalizedSearch);
+        return matchesSearch && row.visibleOrders.length > 0;
+      });
+  }, [customers, orders, receiptFilter, searchTerm]);
 
   const handlePrint = () => {
     window.print();
@@ -47,218 +76,211 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
 
     try {
       const canvas = await html2canvas(element, {
-        scale: 2, // Higher resolution
+        scale: 2,
         backgroundColor: '#ffffff',
         logging: false,
       });
-      
+
       const image = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = image;
-      link.download = `收據_${customerName}_${formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyyMMdd')}.png`;
+      link.download = `receipt_${customerName}_${formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyyMMdd')}.png`;
       link.click();
     } catch (error) {
-      console.error("Failed to export image", error);
-      showAlert("錯誤", "圖片產生失敗，請再試一次。");
+      console.error('Failed to export image', error);
+      showAlert('Export failed', 'Unable to export this receipt image. Please try printing instead.');
     }
   };
 
   const handleToggleShipped = (customerId: string, customerName: string) => {
-    const customerOrders = orders.filter(o => o.customerId === customerId);
+    const customerOrders = orders.filter(order => order.customerId === customerId);
     if (customerOrders.length === 0) return;
 
-    const isAllShipped = customerOrders.every(o => o.isShipped);
-
+    const isAllShipped = customerOrders.every(order => order.isShipped);
     if (isAllShipped) {
-      showConfirm("取消出貨", `確定要取消 ${customerName} 的出貨狀態嗎？`, () => {
-        setOrders(prev => prev.map(o => 
-          o.customerId === customerId ? { ...o, isShipped: false, updatedAt: Date.now() } : o
+      showConfirm('Undo shipped status', `Mark all orders for ${customerName} as not shipped?`, () => {
+        setOrders(prev => prev.map(order =>
+          order.customerId === customerId ? { ...order, isShipped: false, updatedAt: Date.now() } : order
         ));
-        showAlert("成功", `已取消 ${customerName} 的出貨狀態`);
       });
-    } else {
-      const hasIncompleteOrders = customerOrders.some(o => 
-        o.requestedQuantity > o.allocatedQuantity || o.requestedQuantity > (o.arrivedQuantity || 0)
-      );
-
-      const confirmMessage = hasIncompleteOrders 
-        ? `⚠️ 注意：${customerName} 還有部分商品尚未完全配單或到貨！\n\n確定要強制將所有訂單標記為已出貨嗎？`
-        : `確定要將 ${customerName} 的所有訂單標記為已出貨嗎？這將會把這些訂單從配單與買到管理中隱藏。`;
-
-      showConfirm("確認出貨", confirmMessage, () => {
-        setOrders(prev => prev.map(o => 
-          o.customerId === customerId ? { ...o, isShipped: true, updatedAt: Date.now() } : o
-        ));
-        showAlert("成功", `已將 ${customerName} 的訂單標記為已出貨`);
-      });
+      return;
     }
+
+    const activeOrders = customerOrders.filter(order => !order.isShipped);
+    const canShipWholeCustomer = activeOrders.every(order =>
+      order.allocatedQuantity >= order.requestedQuantity && (order.arrivedQuantity || 0) >= order.requestedQuantity
+    );
+
+    if (!canShipWholeCustomer) {
+      showAlert('Not ready to ship', 'This customer still has unallocated or not-yet-arrived items. Use split shipping for partial shipments.');
+      return;
+    }
+
+    showConfirm('Mark shipped', `Mark all ready orders for ${customerName} as shipped?`, () => {
+      setOrders(prev => prev.map(order =>
+        order.customerId === customerId && !order.isShipped ? { ...order, isShipped: true, updatedAt: Date.now() } : order
+      ));
+    });
   };
 
   const handleSplitShip = (customerId: string, customerName: string) => {
-    showConfirm("拆單寄出", `確定要將 ${customerName} 已配貨的商品拆單寄出嗎？\n\n未配貨的商品將會保留在原來的訂單中等待下次出貨。`, () => {
+    const activeOrders = orders.filter(order => order.customerId === customerId && !order.isShipped);
+    const hasShippableItems = activeOrders.some(order => getShippableQuantity(order) > 0);
+
+    if (!hasShippableItems) {
+      showAlert('No shippable items', 'There are no allocated and arrived quantities available to ship.');
+      return;
+    }
+
+    showConfirm('Split shipment', `Ship only the allocated and arrived quantities for ${customerName}? Remaining quantities will stay open.`, () => {
       setOrders(prev => {
-        const newOrders = [...prev];
-        const customerOrders = newOrders.filter(o => o.customerId === customerId && !o.isShipped);
-        
-        customerOrders.forEach(order => {
-          if (order.allocatedQuantity === 0) {
-            // Do nothing, remains unshipped
+        const next = [...prev];
+
+        activeOrders.forEach(order => {
+          const shipQty = getShippableQuantity(order);
+          if (shipQty <= 0) return;
+
+          const index = next.findIndex(item => item.id === order.id);
+          if (index === -1) return;
+
+          if (shipQty >= order.requestedQuantity) {
+            next[index] = {
+              ...next[index],
+              allocatedQuantity: order.requestedQuantity,
+              arrivedQuantity: order.requestedQuantity,
+              isShipped: true,
+              updatedAt: Date.now(),
+            };
             return;
           }
-          
-          if (order.allocatedQuantity === order.requestedQuantity) {
-            // Fully allocated, just mark as shipped
-            const index = newOrders.findIndex(o => o.id === order.id);
-            if (index !== -1) {
-              newOrders[index] = { ...newOrders[index], isShipped: true, updatedAt: Date.now() };
-            }
-          } else if (order.allocatedQuantity > 0 && order.allocatedQuantity < order.requestedQuantity) {
-            // Partially allocated, split the order
-            const index = newOrders.findIndex(o => o.id === order.id);
-            if (index !== -1) {
-              const originalOrder = newOrders[index];
-              const remainingQuantity = originalOrder.requestedQuantity - originalOrder.allocatedQuantity;
-              const arrivedQty = originalOrder.arrivedQuantity || 0;
-              
-              // The shipped part
-              newOrders[index] = {
-                ...originalOrder,
-                requestedQuantity: originalOrder.allocatedQuantity,
-                allocatedQuantity: originalOrder.allocatedQuantity,
-                arrivedQuantity: Math.min(arrivedQty, originalOrder.allocatedQuantity),
-                isShipped: true,
-                updatedAt: Date.now()
-              };
-              
-              // The remaining part
-              const newOrder: Order = {
-                ...originalOrder,
-                id: uuidv4(),
-                requestedQuantity: remainingQuantity,
-                allocatedQuantity: 0,
-                arrivedQuantity: Math.max(0, arrivedQty - originalOrder.allocatedQuantity),
-                isShipped: false,
-                isPaid: false,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-              };
-              newOrders.push(newOrder);
-            }
-          }
+
+          const remainingQuantity = order.requestedQuantity - shipQty;
+          next[index] = {
+            ...order,
+            requestedQuantity: shipQty,
+            allocatedQuantity: shipQty,
+            arrivedQuantity: shipQty,
+            isShipped: true,
+            updatedAt: Date.now(),
+          };
+
+          next.push({
+            ...order,
+            id: uuidv4(),
+            requestedQuantity: remainingQuantity,
+            allocatedQuantity: Math.max(0, order.allocatedQuantity - shipQty),
+            arrivedQuantity: Math.max(0, (order.arrivedQuantity || 0) - shipQty),
+            isShipped: false,
+            isPaid: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
         });
-        
-        return newOrders;
+
+        return next;
       });
-      showAlert("成功", `已將 ${customerName} 的訂單拆單寄出`);
     });
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center no-print">
-        <h2 className="text-2xl font-bold">收據與列印</h2>
-        <div className="flex gap-2">
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)] px-2 bg-white rounded-xl shadow-sm border border-[var(--color-border)]">
-            <input 
-              type="checkbox" 
-              checked={showShipped} 
-              onChange={(e) => setShowShipped(e.target.checked)}
-              className="rounded text-blue-600 focus:ring-blue-500"
-            />
-            顯示已出貨
-          </label>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
+        <h2 className="text-2xl font-bold">收據 / 出貨</h2>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={receiptFilter}
+            onChange={event => setReceiptFilter(event.target.value as ReceiptFilter)}
+            className="px-3 py-2 bg-white rounded-xl shadow-sm border border-[var(--color-border)] text-sm font-medium"
+          >
+            <option value="unshipped">未寄出</option>
+            <option value="ready">可出貨</option>
+            <option value="shipped">已寄出</option>
+            <option value="all">全部</option>
+          </select>
           <button onClick={handlePrint} className="btn-primary flex items-center gap-2">
-            <Printer size={18} /> 列印全部 (A4)
+            <Printer size={18} /> 列印目前清單
           </button>
         </div>
       </div>
 
       <div className="relative no-print">
-        <input 
-          type="text" 
-          placeholder="搜尋顧客收據..." 
+        <input
+          type="text"
+          placeholder="搜尋顧客..."
           className="input-field"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={event => setSearchTerm(event.target.value)}
         />
       </div>
 
-      {filteredCustomers.length === 0 && (
+      {customerReceiptRows.length === 0 && (
         <div className="text-center py-10 opacity-60 no-print">
-          找不到收據。請先建立訂單以產生收據。
+          目前沒有符合條件的收據。
         </div>
       )}
 
-      {/* Print Container */}
       <div className="receipt-container">
-        {filteredCustomers.map(customer => {
-          const customerOrders = ordersByCustomer[customer.id] || [];
-          const allCustomerOrders = orders.filter(o => o.customerId === customer.id);
-          const isAllShipped = allCustomerOrders.length > 0 && allCustomerOrders.every(o => o.isShipped);
-          
-          // Calculate subtotals for each order based on allocated quantity and product discount
-          const ordersWithRecalculatedSubtotal = customerOrders.map(order => {
-            const product = products.find(p => p.id === order.productId);
-            if (!product) return { ...order, recalculatedSubtotal: 0 };
-            return { 
-              ...order, 
-              recalculatedSubtotal: calculateSubtotal(product, order.allocatedQuantity) 
+        {customerReceiptRows.map(({ customer, allOrders, visibleOrders, ready, allShipped }) => {
+          const receiptOrders = visibleOrders.map(order => {
+            const product = products.find(item => item.id === order.productId);
+            const receiptQuantity = receiptFilter === 'shipped' || order.isShipped
+              ? order.allocatedQuantity
+              : getShippableQuantity(order);
+
+            return {
+              ...order,
+              product,
+              receiptQuantity,
+              recalculatedSubtotal: product ? calculateSubtotal(product, receiptQuantity) : 0,
             };
-          });
+          }).filter(order => order.product && order.receiptQuantity > 0);
 
-          const totalAmount = ordersWithRecalculatedSubtotal.reduce((sum, order) => sum + order.recalculatedSubtotal, 0);
-          const totalItems = customerOrders.reduce((sum, order) => sum + order.allocatedQuantity, 0);
-
-          const hasIncompleteOrders = customerOrders.some(o => 
-            o.requestedQuantity > o.allocatedQuantity || o.requestedQuantity > (o.arrivedQuantity || 0)
-          );
-          const hasAllocatedItems = customerOrders.some(o => o.allocatedQuantity > 0);
-          const canSplitShip = hasIncompleteOrders && hasAllocatedItems && !isAllShipped;
+          const totalAmount = receiptOrders.reduce((sum, order) => sum + order.recalculatedSubtotal, 0);
+          const canSplitShip = allOrders.some(order => !order.isShipped && getShippableQuantity(order) > 0 && getShippableQuantity(order) < order.requestedQuantity);
 
           return (
-            <div 
-              key={customer.id} 
+            <div
+              key={customer.id}
               className="receipt-item card p-6 mb-6 relative bg-white"
-              ref={el => receiptRefs.current[customer.id] = el}
+              ref={element => receiptRefs.current[customer.id] = element}
             >
-              <div className="absolute top-4 right-4 flex gap-2 no-print">
+              <div className="absolute top-4 right-4 flex flex-wrap justify-end gap-2 no-print">
+                {ready && <span className="px-2 py-1 rounded-full bg-green-50 text-green-700 text-xs font-bold">可出貨</span>}
+                {allShipped && <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-bold">已寄出</span>}
                 {canSplitShip && (
-                  <button 
+                  <button
                     onClick={() => handleSplitShip(customer.id, customer.name)}
                     className="p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-bold text-orange-600 bg-orange-50 hover:bg-orange-100"
-                    title="拆單寄出 (僅出貨已配貨商品)"
+                    title="部分出貨"
                   >
                     <Scissors size={18} />
-                    <span className="hidden sm:inline">拆單寄出</span>
+                    <span className="hidden sm:inline">部分出貨</span>
                   </button>
                 )}
-                <button 
+                <button
                   onClick={() => handleToggleShipped(customer.id, customer.name)}
-                  className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-bold ${isAllShipped ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
-                  title={isAllShipped ? "取消出貨" : "標記為已出貨"}
+                  className={`p-2 rounded-full transition-colors flex items-center gap-1 text-sm font-bold ${allShipped ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
+                  title={allShipped ? '取消寄出' : '標記寄出'}
                 >
-                  {isAllShipped ? <PackageCheck size={18} /> : <Truck size={18} />}
-                  <span className="hidden sm:inline">{isAllShipped ? '已出貨' : '出貨'}</span>
+                  {allShipped ? <PackageCheck size={18} /> : <Truck size={18} />}
+                  <span className="hidden sm:inline">{allShipped ? '取消寄出' : '寄出'}</span>
                 </button>
-                <button 
+                <button
                   onClick={() => handleExportImage(customer.id, customer.name)}
                   className="p-2 text-[var(--color-text)] opacity-50 hover:opacity-100 hover:bg-[var(--color-bg)] rounded-full transition-colors"
-                  title="匯出為圖片"
+                  title="匯出圖片"
                 >
                   <Download size={18} />
                 </button>
               </div>
 
-              {/* Receipt Items */}
               <table className="w-full text-left border-collapse mb-4 print:mb-6 print:table table-fixed">
                 <thead className="print:table-header-group">
-                  {/* Receipt Header (Inside thead so it repeats on page break) */}
                   <tr>
                     <th colSpan={6} className="font-normal pb-4">
                       <div className="text-center mb-2 print:break-inside-avoid">
-                        <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo 倉管系統</p>
-                        <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 顧客訂單明細</h3>
-                        
+                        <p className="text-xs print:text-sm text-gray-500 mb-2">Cuibo WMS</p>
+                        <h3 className="text-2xl print:text-3xl font-bold text-[#8B7355] mb-6">{customer.name} 出貨收據</h3>
                         <div className="flex justify-between text-xs print:text-sm text-gray-400 mb-2 px-2">
                           <span>列印日期：{formatInTimeZone(new Date(), 'Asia/Taipei', 'yyyy/MM/dd')}</span>
                           <span>顧客：{customer.name}</span>
@@ -269,19 +291,16 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                   </tr>
                   <tr className="border-b border-gray-200 text-sm print:text-base text-gray-800 font-bold">
                     <th className="w-12 print:w-16 py-3 text-center"></th>
-                    <th className="w-[30%] py-3">商品名稱</th>
-                    <th className="w-[20%] py-3">款式</th>
+                    <th className="w-[30%] py-3">商品</th>
+                    <th className="w-[20%] py-3">規格</th>
                     <th className="w-[15%] py-3">單價</th>
                     <th className="w-[10%] py-3 text-center">數量</th>
                     <th className="w-[15%] py-3 text-right">小計</th>
                   </tr>
                 </thead>
                 <tbody className="print:table-row-group">
-                  {ordersWithRecalculatedSubtotal.map(order => {
-                    const product = products.find(p => p.id === order.productId);
-                    if (!product || order.allocatedQuantity === 0) return null;
-
-                    const unitPrice = order.recalculatedSubtotal / order.allocatedQuantity;
+                  {receiptOrders.map(order => {
+                    const unitPrice = order.recalculatedSubtotal / order.receiptQuantity;
                     const orderDate = formatInTimeZone(order.createdAt || Date.now(), 'Asia/Taipei', 'M/dd HH:mm');
 
                     return (
@@ -290,17 +309,17 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                           <div className="inline-block w-5 h-5 border-2 border-gray-800 rounded-md print:w-6 print:h-6 print:border-2"></div>
                         </td>
                         <td className="py-4 pr-2 align-middle">
-                          <div className="font-medium text-gray-800 text-sm print:text-base">{product.name}</div>
+                          <div className="font-medium text-gray-800 text-sm print:text-base">{order.product?.name}</div>
                           <div className="text-xs text-gray-400 mt-1">{orderDate}</div>
                         </td>
                         <td className="py-4 text-gray-600 pr-2 align-middle text-sm print:text-base">
-                          {product.variant || '-'}
+                          {order.product?.variant || '-'}
                         </td>
                         <td className="py-4 text-gray-800 align-middle text-sm print:text-base">
                           NT${unitPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                         <td className="py-4 text-center text-gray-800 align-middle text-sm print:text-base">
-                          {order.allocatedQuantity}
+                          {order.receiptQuantity}
                         </td>
                         <td className="py-4 text-right font-bold text-gray-800 align-middle text-sm print:text-base">
                           NT${order.recalculatedSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -311,9 +330,8 @@ export default function ReceiptsTab({ orders, setOrders, products, customers, no
                 </tbody>
               </table>
 
-              {/* Receipt Footer */}
               <div className="flex justify-end items-center text-sm print:text-base font-bold text-gray-800 mb-8 print:break-inside-avoid">
-                <span className="mr-4">總計金額：</span>
+                <span className="mr-4">總計：</span>
                 <span className="text-xl print:text-2xl text-[#8B7355]">NT${totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               </div>
 
