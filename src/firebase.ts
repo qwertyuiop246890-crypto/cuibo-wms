@@ -20,6 +20,7 @@ const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firestoreDatabaseId);
 export const auth = getAuth(app);
+export const authPersistenceReady = auth.authStateReady(); // Add this line
 export const googleProvider = new GoogleAuthProvider();
 
 // Error Handling
