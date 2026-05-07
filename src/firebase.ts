@@ -1,18 +1,26 @@
 import { initializeApp } from 'firebase/app';
-import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence, signInWithPopup, onAuthStateChanged, User, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer, collection, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 
 // Import the Firebase configuration
-import firebaseConfig from '../firebase-applet-config.json';
+import legacyConfig from '../firebase-applet-config.json';
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || legacyConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || legacyConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || legacyConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || legacyConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || legacyConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || legacyConfig.appId,
+};
+
+const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || (legacyConfig as any).firestoreDatabaseId;
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error('Failed to set auth persistence', error);
-});
 
 // Error Handling
 export enum OperationType {
@@ -62,11 +70,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error: ', {
-    error: errInfo.error,
-    operationType: errInfo.operationType,
-    path: errInfo.path
-  });
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
 }
 
 // Connection test
